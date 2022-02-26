@@ -1,0 +1,130 @@
+#!/bin/sh -e
+#L:
+#L:  MIT License
+#L:  
+#l:  Bug reports, feature requests to gemini|https://harkadev.com/oss
+#l:  Copyright (c) 2022 Harkaitz Agirre, harkaitz.aguirre@gmail.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#h: Usage: $0 ...
+#h:
+#h: optopt VAR[=VAL] [SEP] :
+#h: optarg VAR[=VAR] [SEP] :
+#h: vname STRING...        : Print variable name.
+#h: fname STRING...        : Print function name.
+#h: escape STRING...       : Return single quote escaped string.
+#h: escape2 STRING         : Return double queote escaped string.
+#h: abspath FILENAME       : Return absolute path.
+#h: suffix FILENAME        : Return suffix including the dot. (.tar.gz, ...)
+#h: l-has ITEM LIST...     : Check whether the item is in list.
+#h: u-proto URL            : Get protocol from URL.
+#h: u-{user,pass}  URL     : Get username from URL.
+#h: u-{host,port}  URL     : Get password from URL.
+#h: u-path         URL     : Get content from URL.
+hstr() {
+    local cmd="$1"
+    shift
+    case "${cmd}" in
+        optopt)  hstr_optopt    "$@" ;;
+        optarg)  hstr_optarg    "$@" ;;
+        vname)   hstr_vname     "$@" ;;
+        fname)   hstr_fname     "$@" ;;
+        escape)  hstr_escape    "$@" ;;
+        escape2) hstr_escape2   "$@" ;;
+        l-has)   hstr_l_has     "$@" ;;
+        ##
+        u-proto) hstr_url_proto "$@" ;;
+        u-user)  hstr_url_user  "$@" ;;
+        u-pass)  hstr_url_pass  "$@" ;;
+        u-host)  hstr_url_host  "$@" ;;
+        u-port)  hstr_url_port  "$@" ;;
+        u-path)  hstr_url_path  "$@" ;;
+        ##
+        *)       echo "${SCRNAME}: error: Invalid arguments ${cmd}." >&2
+                 return 1;;
+    esac
+}
+## -----------------------------------------------------------------------------
+hstr_optopt() { local s="${2:-=}"; echo "$1" | sed -n 's|^\(-*[^'"$s"' ][^'"$s"' ]*\).*|\1|p'; }
+hstr_optarg() { local s="${2:-=}"; echo "$1" | sed -n 's|^-*[^'"$s"'][^'"$s"']*'"$s"'||p'; }
+hstr_vname()  { echo "$*" | sed 's|[ \.@\-]|_|g' | tr '[:lower:]' '[:upper:]'; }
+hstr_fname()  { echo "$*" | sed 's|[ \.@\-]|_|g' | tr '[:upper:]' '[:lower:]'; }
+hstr_escape() {
+    local ret="" arg=""
+    for arg in "$@";do
+        local ret="$ret '`echo "$arg" | sed "s|'|'\\\\\\''|g"`'"
+    done
+    printf '%s\n' "$ret"
+}
+hstr_escape2() {
+    local ret="" arg=""
+    for arg in "$@";do
+        local ret="$ret \"`echo "$arg" | sed 's|\([\$"]\)|\\\\\\1|g'`\""
+    done
+    printf '%s\n' "$ret"
+}
+hstr_abspath() {
+    case "$1" in
+        /*) echo "$1"       ;;
+        *)  echo "`pwd`/$1" ;;
+    esac
+}
+hstr_suffix() {
+    local suffix="`basename "$1" | sed -n 's|.[^\.]*\.\(.*\)|\1|p'`"
+    if test ! -n "$suffix";then
+        echo "${SCRNAME}: error: File \`$1\` hasn't a suffix." >&2
+        return 1
+    fi
+    echo ".$suffix"
+}
+hstr_l_has() {
+    local item="$1" e=
+    shift
+    for e in "$@";do
+        if test @"${item}" = @"${e}";then
+            return 0
+        fi
+    done
+    return 1
+}
+hstr_url_proto()    { echo "$1" | sed -n 's|^\([^:]*\)://.*|\1|p';     }
+hstr_url_proto_no() { echo "$1" | sed 's|^\([^:]*\)://||';             }
+hstr_url_cred()     { hstr_url_proto_no "$1" | sed -n 's|@.*||p';      }
+hstr_url_user()     { hstr_url_cred "$1"     | sed    's|:.*||';       }
+hstr_url_pass()     { hstr_url_cred "$1"     | sed -n 's|^[^:]*:||p';  }
+hstr_url_cred_no()  { hstr_url_proto_no "$1" | sed    's|.*@||';       }
+hstr_url_host()     { hstr_url_cred_no  "$1" | sed    's|[/:].*||';    }
+hstr_url_port()     { hstr_url_cred_no  "$1" | sed -n 's|^[^/]*:\([0-9]*\).*|\1|p'; }
+hstr_url_path()     { hstr_url_cred_no  "$1" | sed -n 's|^[^/]*/||p';  }
+
+## -----------------------------------------------------------------------------
+SCRNAME="`basename "$0"`"
+if test @"${SCRNAME}" = @"hstr";then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            hstr "$@"
+            ;;
+    esac
+fi

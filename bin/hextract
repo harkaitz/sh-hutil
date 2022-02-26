@@ -1,0 +1,78 @@
+#!/bin/sh -e
+#L:
+#L:  MIT License
+#L:  
+#l:  Bug reports, feature requests to gemini|https://harkadev.com/oss
+#l:  Copyright (c) 2022 Harkaitz Agirre, harkaitz.aguirre@gmail.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#h: Usage: $0 [sudo] FILE [DIR [PATT]
+#h:
+#h: Extract the file to directory. [.tar][.tgz][.tar.*][.zip][.7z][.rar]
+hextract() {
+    ## Get options.
+    if test sudo = "$1";then
+        local sudo=sudo; shift
+    else
+        local sudo=
+    fi
+    local f="$1" d="${2:-`pwd`}" p="$3"
+    ## Check arguments.
+    if test ! -n "${f}";then
+        return 1
+    elif test ! -f "${f}";then
+        echo "${SCRNAME}: error: File '${f}' does not exists." >&2
+        return 1
+    fi
+    ## Create output firectory.
+    ${sudo} mkdir -p "$d"
+    ## Extract the file.
+    case "${f}" in
+        *.tar|*.tar.*|*.tgz) ${sudo} tar xf "${f}" -h -o -m -C "${d}"             ;;
+        *.zip)               ${sudo} unzip -q -o "${f}" -d "${d}"                 ;;
+        *.7z|*.rar)          ${sudo} 7z x -y "${f}" -o"${d}"                      ;;
+        *)                   echo "${SCRNAME}: error: Unsupported file '$f'." >&2
+                             return 1;;
+    esac
+    ## If a directory and pattern where specified.
+    if test -n "${2}" && test -n "${p}";then
+        local dd="`${sudo} find "${d}" -maxdepth 1 -mindepth 1 -iname ${p} | head -n 1`"
+        if test ! -d "${dd}";then
+            echo "${SCRNAME}: error: Directory \`${p}\` not found." >&2
+            return 1
+        fi
+        ${sudo} mv "${dd}" "${dd}.tmp"
+        env dd="${dd}" sh -c 'cd "${dd}.tmp"; tar cf - *' | ${sudo} tar xf - -C "${d}"
+        ${sudo} rm -rf "${dd}.tmp"
+    fi
+}
+SCRNAME="`basename "$0"`"
+if test @"${SCRNAME}" = @"hextract";then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            hextract "$@"
+            ;;
+    esac
+fi

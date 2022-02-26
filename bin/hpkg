@@ -1,0 +1,240 @@
+#!/bin/sh -e
+#L:
+#L:  MIT License
+#L:  
+#l:  Bug reports, feature requests to gemini|https://harkadev.com/oss
+#l:  Copyright (c) 2022 Harkaitz Agirre, harkaitz.aguirre@gmail.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#h: Usage: $0 ...
+#h:
+#h: Program checker and installer.
+#h:
+#h:     Distros          : @void, @centos, @ubuntu, @FreeBSD.
+#h:     Package managers : %dpkg, %rpm, %xbps, %pacman, %pkg, %npm,
+#h:                        %go, %gem, %pip3
+#h:
+#h: Options:
+#h:
+#h:     -w PROGRAM [-w ...] : Skip installation if any of the programs is
+#h:                           not installed.
+#h:     -q                  : Quiet mode.
+#h:     -D/P                : Print distro or package manager.
+#h:     -S {@D|%P} ARGS...  : Print arguments if the current system matches
+#h:                           the distro (@D) or has a package manager (%P).
+#h:     -i {@D|%P} PKG...   : Install packages.
+#h:     -u {@D|%P} PKG...   : Remove packages.
+#h:     -c {@D|%P} ...      : Check the system has one of.
+#::
+if test -f /etc/profile.d/zz-go.sh;then
+    . /etc/profile.d/zz-go.sh
+fi
+hpkg() {
+    ## Parse command line options.
+    local OPTIND optopt= ops= skip=
+    while getopts "vDPqSiucw:" optopt;do # OPTARG
+        local ops="${ops}${optopt}"
+        case $optopt in
+            v)  local HPKG_VERBOSE=y
+                ;;
+            w)  if test -f "${OPTARG}";then
+                    local skip="${skip:-y}"
+                elif which "${OPTARG}" >/dev/null 2>&1;then
+                    local skip="${skip:-y}"
+                else
+                    local skip=n
+                fi
+                ;;
+            q)  export HPKG_QUIET=y
+                ;;
+            \?) return 1
+                ;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+   
+    ## Operations.
+    case "${ops}" in
+        *D*) echo "${DISTRO_ID}"       ;;
+        *P*) echo "${PACKAGE_MANAGER}" ;;
+        *S*) hpkg_select  "$@"         ;;
+        *i*) if test ! @"${skip}" = @"y";then
+                 hpkg_install "$@" 
+             fi
+             ;;
+        *c*) if ! hpkg_check "$@";then
+                 return 1
+             fi;;
+    esac
+    case "${ops}" in
+        *u*) if test @"${skip}" = @"y" || test @"${skip}" = @"";then
+                 hpkg_remove "$@" 
+             fi
+             ;;
+    esac
+}
+hpkg_calc_variables() {
+    export HPKG_QUIET=n
+    HPKG_VERBOSE=n
+    if test ! -n "${DISTRO_ID}";then
+        if test -f /etc/os-release;then
+            export DISTRO_ID="`sh -c '. /etc/os-release; echo "${ID}"'`"
+        else
+            export DISTRO_ID="`uname -s`"
+        fi
+    fi
+    if test -n "${PACKAGE_MANAGER}";then
+        true
+    elif test -f /usr/bin/apt-get;then
+        export PACKAGE_MANAGER=dpkg
+    elif test -f /usr/bin/yum;then
+        export PACKAGE_MANAGER=rpm
+    elif test -f /usr/bin/xbps-install;then
+        export PACKAGE_MANAGER=xbps
+    elif test -f /usr/bin/pacman;then
+        export PACKAGE_MANAGER=pacman
+    elif test -f /usr/sbin/pkg;then
+        export PACKAGE_MANAGER=pkg
+    else
+        export PACKAGE_MANAGER=unknown
+    fi
+}
+hpkg_error() {
+    if test ! @"${HPKG_QUIET}" = @"y";then
+        echo "error: $*" >&2
+    fi
+}
+## -----------------------------------------------------------------------------
+hpkg_select_var() {
+    HPKG_PACKAGES= HPKG_INSTALLER="${PACKAGE_MANAGER}"
+    for arg in "$@";do
+        case "${arg}" in
+            @${DISTRO_ID})       local found=y; continue;;
+            %${PACKAGE_MANAGER}) local found=y; continue;;
+            %npm)
+                if which npm >/dev/null 2>&1;then
+                    local found=y; HPKG_INSTALLER=npm
+                    continue
+                fi
+                ;;
+            %go)
+                if which go >/dev/null 2>&1;then
+                    local found=y; HPKG_INSTALLER=go
+                    continue
+                fi
+                ;;
+            %gem)
+                if which gem >/dev/null 2>&1;then
+                    local found=y; HPKG_INSTALLER=gem
+                    continue
+                fi
+                ;;
+            %pip3)
+                if which pip3 >/dev/null 2>&1;then
+                    local found=y; HPKG_INSTALLER=pip3
+                    continue
+                fi
+                ;;
+            
+            @*|%*) local found=n; continue;;
+            --)    continue;;
+        esac
+        if test @"${found}" = @"y";then
+            HPKG_PACKAGES="${HPKG_PACKAGES}${arg}
+"
+        fi
+    done
+}
+hpkg_select() {
+    hpkg_select_var "$@"
+    echo "${HPKG_PACKAGES}"
+}
+hpkg_install() {
+    hpkg_select_var "$@"
+    local pkgs="${HPKG_PACKAGES}"
+    if test ! -n "${pkgs}";then
+        hpkg_error "Unsupported platform: $*" >&2
+        return 1
+    fi
+    case "${HPKG_INSTALLER}" in
+        dpkg)   hpkg_vrun sudo apt-get      -y install      ${pkgs} ;;
+        rpm)    hpkg_vrun sudo yum          -y install      ${pkgs} ;;
+        xbps)   hpkg_vrun sudo xbps-install -Sy             ${pkgs} ;;
+        pacman) hpkg_vrun sudo pacman       --noconfirm -Sy ${pkgs} ;;
+        pkg)    hpkg_vrun sudo pkg          install --yes   ${pkgs} ;;
+        npm)    hpkg_vrun sudo npm          install -g      ${pkgs} ;;
+        go)     hpkg_vrun      go           get             ${pkgs} ;;
+        gem)    hpkg_vrun sudo gem          install --no-user-install -n /usr/bin ${pkgs} ;;
+        pip3)   hpkg_vrun sudo pip3          install ${pkgs};;
+        *)      hpkg_error "Unsupported package manager.";;
+    esac
+}
+hpkg_remove() {
+    local pkgs="`hpkg_select "$@"`"
+    if test ! -n "${pkgs}";then
+        hpkg_error "Unsupported platform." >&2
+        return 1
+    fi
+    case "${PACKAGE_MANAGER}" in
+        dpkg)   sudo apt-get remove ${pkgs}     ;;
+        rpm)    : sudo yum -y remove ${pkgs}         ;;
+        xbps)   sudo xbps-remove ${pkgs}       ;;
+        pacman) : sudo pacman --noconfirm -Sy ${pkgs} ;;
+        pkg)    : sudo pkg uninstall --yes ${pkgs}      ;;
+        npm)    : sudo npm uninstall -g ${pkgs}         ;;
+        go)     : go get ${pkgs}                      ;;
+        *)      hpkg_error "Unsupported package manager.";;
+    esac
+}
+
+hpkg_check() {
+    local arg= ret=
+    for arg in "$@";do
+        case "${arg}" in
+            @${DISTRO_ID})       local ret=0;;
+            %${PACKAGE_MANAGER}) local ret=0;;
+        esac
+    done
+    return "${ret:-1}"
+}
+
+hpkg_vrun() {
+    if test -n "${HPKG_VERBOSE}";then
+        echo "${SCRNAME}: Running: $*" >&2
+    fi
+    "$@"
+}
+
+
+## -----------------------------------------------------------------------------
+SCRNAME="`basename "$0"`"
+hpkg_calc_variables
+if test @"${SCRNAME}" = @"hpkg";then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            hpkg "$@"
+            ;;
+    esac
+fi
