@@ -25,10 +25,11 @@
 #L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #h: Usage:
 #h:      
-#h: $0 {error,info,warning} MESSAGE      : Print message.
-#h: $0 {debug}              MESSAGE      : Print message if $DEBUG is defined. 
-#h: $0 {fatal|abort}        MESSAGE      : Print message and fail.
-#h: $0 {errif}              MESSAGE TEST : Print message and fail if test succedes..
+#h: $0 {error,info,warning} MSG       : Print message.
+#h: $0 {debug}              MSG       : Print message if $DEBUG is defined. 
+#h: $0 {fatal|abort}        MSG       : Print message and fail.
+#h: $0 {errif}              MSG TEST  : Print message and fail if test succedes.
+#h: $0 {file}               NAME DESC : Prnt log filename.
 hlog() {
     local cmd="$1"
     shift
@@ -51,6 +52,12 @@ hlog() {
                  fi;;
         fatal)   hlog error "$*"; exit 1;;
         abort)   hlog error "$*"; exit 1;;
+        file)    local name="${1:-${SCRNAME}}"
+                 local name="`basename "${name}"`"
+                 mkdir -p "${HOME}/.log"
+                 echo "${SCRNAME}: [~/.log/${name}.log] ${2}" >&2
+                 echo "${HOME}/.log/${name}.log"
+                 ;;
         *)       hlog info "${cmd} $*";;
     esac
 }

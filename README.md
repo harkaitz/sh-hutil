@@ -4,10 +4,11 @@ hlog
 
     Usage:
          
-    hlog {error,info,warning} MESSAGE      : Print message.
-    hlog {debug}              MESSAGE      : Print message if $DEBUG is defined. 
-    hlog {fatal|abort}        MESSAGE      : Print message and fail.
-    hlog {errif}              MESSAGE TEST : Print message and fail if test succedes..
+    hlog {error,info,warning} MSG       : Print message.
+    hlog {debug}              MSG       : Print message if $DEBUG is defined. 
+    hlog {fatal|abort}        MSG       : Print message and fail.
+    hlog {errif}              MSG TEST  : Print message and fail if test succedes.
+    hlog {file}               NAME DESC : Prnt log filename.
 
 vrun
 
