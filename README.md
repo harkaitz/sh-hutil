@@ -1,5 +1,19 @@
 ## Help
 
+lrun
+
+    Usage: lrun -lf NAME COMMAND
+    
+    Execute a program redirecting it's output to a log file. It will store
+    the log file in /tmp/lrun.
+    
+    1.- You can change the output directory from /tmp to another setting LRUN_LOGDIR.
+    2.- You can skip lrun executions adding "names" to LRUN_SKIP.
+    3.- You can change the size of the columns with LRUN_COL1 and LRUN_COL2.
+    
+    -l : Print the head.
+    -f : The command is a function, so load 'lrun' in the new shell.
+
 hlog
 
     Usage:

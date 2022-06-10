@@ -29,19 +29,16 @@
 #h: $0 {debug}              MSG       : Print message if $DEBUG is defined. 
 #h: $0 {fatal|abort}        MSG       : Print message and fail.
 #h: $0 {errif}              MSG TEST  : Print message and fail if test succedes.
-#h: $0 {file}               NAME DESC : Prnt log filename.
 hlog() {
     local cmd="$1"
     shift
     case "${cmd}" in
-        error)
-            echo "${SCRNAME}: error: $*" >&2;;
-        info)
-            if test -n "${HLOG_NO_PREFIX}";then
-                printf '%s\n' "$*" >&2
-            else
-                echo "${SCRNAME}: $*" >&2
-            fi;;
+        error)   echo "${SCRNAME}: error: $*" >&2;;
+        info)    if test -n "${HLOG_NO_PREFIX}";then
+                     printf '%s\n' "$*" >&2
+                 else
+                     echo "${SCRNAME}: $*" >&2
+                 fi;;
         warning) echo "${SCRNAME}: warn : $*" >&2;;
         debug)   if test -n "${DEBUG}";then
                      echo "${SCRNAME}: debug: $*" >&2
@@ -50,14 +47,8 @@ hlog() {
                  if "$@";then
                      hlog fatal "$m"    
                  fi;;
-        fatal)   hlog error "$*"; exit 1;;
-        abort)   hlog error "$*"; exit 1;;
-        file)    local name="${1:-${SCRNAME}}"
-                 local name="`basename "${name}"`"
-                 mkdir -p "${HOME}/.log"
-                 echo "${SCRNAME}: [~/.log/${name}.log] ${2}" >&2
-                 echo "${HOME}/.log/${name}.log"
-                 ;;
+        fatal)   hlog error "$*"; return 1;;
+        abort)   hlog error "$*"; return 1;;
         *)       hlog info "${cmd} $*";;
     esac
 }

@@ -1,0 +1,108 @@
+#!/bin/sh -e
+#L:
+#L:  MIT License
+#L:  
+#l:  Bug reports, feature requests to gemini|https://harkadev.com/oss
+#l:  Copyright (c) 2022 Harkaitz Agirre, harkaitz.aguirre@gmail.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#h: Usage: $0 -lf NAME COMMAND
+#h:
+#h: Execute a program redirecting it's output to a log file. It will store
+#h: the log file in /tmp/lrun.
+#h:
+#h: 1.- You can change the output directory from /tmp to another setting LRUN_LOGDIR.
+#h: 2.- You can skip lrun executions adding "names" to LRUN_SKIP.
+#h: 3.- You can change the size of the columns with LRUN_COL1 and LRUN_COL2.
+#h:
+#h: -l : Print the head.
+
+lrun() {
+    local skip= head= OPTIND optopt=
+    while getopts "lf" optopt;do
+        case $optopt in
+            l)  local head="${SCRNAME}";;
+            f)  true ;; ## Compativility.
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    if test -n "$1"; then
+        local name1="`echo "${1}" | tr '/' '-'`"
+        local name2="${1}"
+        shift
+    else
+        echo 'lrun: error: Please specify a name.' >&2
+        return 1
+    fi
+    if test ! -n "$1"; then
+        echo 'lrun: error: Please specify a command to execute.' >&2
+        return 1
+    fi
+    local f_log="${LRUN_LOGDIR}/${name1}.log"
+    local f_ok="${LRUN_LOGDIR}/${name1}.log.ok"
+    local f_err="${LRUN_LOGDIR}/${name1}.log.err"
+    local f_skip="${LRUN_LOGDIR}/${name1}.log.skip"
+    if test @"${LRUN_LOGDIR}" = @"/tmp"; then
+        local f_log_s="${f_log}"
+    else
+        local f_log_s="${name1}.log"
+    fi
+    mkdir -p "${LRUN_LOGDIR}"
+    rm -f "${f_log}" "${f_ok}" "${f_err}" "${f_skip}"
+    for skip in ${LRUN_SKIP}; do
+        if test @"${skip}" = @"${name2}"; then
+            printf "${head:+${head}: }"'%-'"${LRUN_COL1}"'s : %-'"${LRUN_COL2}"'s : SKIP\n' "${name2}" "${f_log_s}"
+            touch "${f_log}" "${f_skip}"
+            return 0
+        fi
+    done
+    printf "${head:+${head}: }"'%-'"${LRUN_COL1}"'s : %-'"${LRUN_COL2}"'s : ' "${name2}" "${f_log_s}" >&2
+    ecode "$@" > "${f_log}" 2>&1
+    if test @"${ecode}" = @"0"; then
+        echo "SUCCESS" >&2
+        touch "${f_ok}"
+    else
+        echo "ERROR" >&2
+        touch "${f_err}"
+        return 1
+    fi
+}
+lrun_calc_variables() {
+    LRUN_LOGDIR="${LRUN_LOGDIR:-/tmp/lrun}"
+    LRUN_SKIP="${LRUN_SKIP:-}"
+    LRUN_COL1="${LRUN_COL1:-24}"
+    LRUN_COL2="${LRUN_COL2:-25}"
+}
+
+
+## -----------------------------------------------------------------------------
+ecode() { set +e; ( set -e; "$@" ); ecode=$?; set -e; }
+SCRNAME="`basename "$0"`"
+lrun_calc_variables
+if test @"${SCRNAME}" = @"lrun";then
+    if test -n "$1";then
+        lrun "$@"
+    else
+        sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|`basename $0`|g"
+        echo ""
+        sed -n 's/^ *#l: \{0,2\}//p' "$0"
+    fi
+fi

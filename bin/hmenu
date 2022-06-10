@@ -1,0 +1,144 @@
+#!/bin/sh -e
+#L:
+#L:  MIT License
+#L:  
+#l:  Bug reports, feature requests to gemini|https://harkadev.com/oss
+#l:  Copyright (c) 2022 Harkaitz Agirre, harkaitz.aguirre@gmail.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+##:
+#h: Usage: $0 [-c][-q][-t TITLE][-m TXT][-p PROMPT][-f FUNC][-o OPT][SEL][ARGS...]
+#h:
+#h: An interactive menu for the terminal. It print the selected
+#h: item to standard output. In the title and text the leading `    |`
+#h: are removed.
+hmenu() {
+    
+    ## Parse command line arguments.
+    local prompt="${SCRNAME}> "
+    local msg=
+    local opts=
+    local osel=
+    local ofun=
+    local oshift=n
+    local otitle=
+    local oclear=
+    local oquit=
+    local OPTIND optopt=
+    while getopts "m:p:o:f:t:cq" optopt;do # OPTARG
+        case $optopt in
+            m)  local msg="`   printf '%s\n' "${OPTARG}" | sed 's/^ *| \{0,1\}//'`" ;;
+            p)  local prompt="`printf '%s\n' "${OPTARG}" | sed 's/^ *| \{0,1\}//'`" ;;
+            t)  local otitle="`printf '%s\n' "${OPTARG}" | sed 's/^ *| \{0,1\}//'`" ;;
+            o)  local opts="${opts} ${OPTARG}" ;;
+            f)  local ofun="${OPTARG}"         ;;
+            c)  local oclear="y"               ;;
+            q)  local oquit="y"                ;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    ## Get command if specified.
+    if test -n "${1}"; then
+        local osel="${1}"
+        shift
+    fi
+    ## Print title.
+    if test ! -n "${osel}" && test -n "${ofun}${otitle}"; then
+        clear
+        test ! -n "${otitle}" || printf "\033[0;32m%s\033[0m\\n" "${otitle}" >&2
+        test ! -n "${msg}"    || printf "\\n%s\\n\\n"            "${msg}"    >&2
+    fi
+    ## If the selection wasn't passed, ask interactively.
+    local second=
+    while true; do
+        local sel= o= fun= args=
+        ## Finish
+        if test ! -n "${second}"; then
+            local second=y
+        elif test -n "${osel}"; then
+            return 0
+        elif test @"${oquit}" = @"y"; then
+            return 0
+        fi
+        ## Clear
+        if test @"${oclear}" = @"y" && test ! -n "${osel}"; then
+            clear >&2
+        fi
+        ## Fill "sel".
+        if test -n "${osel}"; then
+            local sel="${osel}"
+        elif test -e /dev/tty; then
+            printf "\033[0;32m%s\033[0m" "${prompt}" >/dev/tty
+            read </dev/tty sel args
+        else
+            printf "\033[0;32m%s\033[0m" "${prompt}" >&2
+            read sel args
+        fi
+        ## Internal commands.
+        case "${sel}" in
+            q|quit) return 0;;
+            h|help) printf '%s\n' "${msg:-${otitle}}" >&2; continue;;
+            '')     continue;;
+        esac
+        ## Check it is valid.
+        if test -n "${opts}"; then
+            local match=
+            for o in ${opts}; do
+                case "${sel}" in "${o}") local match="${sel}"; break;; esac
+            done
+            if test ! -n "${match}"; then
+                echo "${SCRNAME}: Invalid choice: ${sel}" >&2
+                continue
+            fi
+        fi
+        ## Finished.
+        if test -n "${ofun}"; then
+            local fun="${ofun}`echo "${sel}" | tr '-' '_' | tr '.' '_'`"
+            if test -n "${osel}"; then
+                "${fun}" "$@"
+                return 0
+            else
+                ecode "${fun}" ${args}
+                continue
+            fi
+            
+        else
+            echo "${sel}" "$@"
+            break
+        fi
+    done
+}
+
+## -----------------------------------------------------------------------------
+ecode() { set +e; ( set -e; "$@" ); ecode=$?; set -e; }
+SCRNAME="`basename "$0"`"
+if test @"${SCRNAME}" = @"hmenu";then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            hmenu "$@"
+            ;;
+    esac
+fi

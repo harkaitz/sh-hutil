@@ -23,12 +23,14 @@
 #L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 #L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 #L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+##:
 #h: Usage: hmain [OPTIONS...] MAIN_F ARGS...
 #h: 
 #h: -f NAME   : Only execute if script's name matches.
 #h: -u UNAME  : If `uname -n` doesn't match UNAME skip.
 #h: -s SSH    : Instead of skipping `hsh -r SSH` instead.
 #h: -l ARG    : First arguments to be executed locally.
+##:
 hmain() {
     local script= uname= ssh= locals= l=
     ## Parse command line arguments.
@@ -59,7 +61,7 @@ hmain() {
     done
     shift $(( $OPTIND - 1 ))
     ## Check the filename.
-    if test -n "${script}" && test ! @"${script}" = @"${SCRNAME}";then
+    if test -n "${script}" && test ! @"${script}" = @"${BASENAME}";then
         return 0
     fi
     ## Get main function.
@@ -100,6 +102,7 @@ hmain() {
 }
 ## -----------------------------------------------------------------------------
 SCRNAME="`basename "$0"`"
+BASENAME="${SCRNAME}"
 if test @"${SCRNAME}" = @"hmain";then
     case "${1}" in
         ''|-h|--help)

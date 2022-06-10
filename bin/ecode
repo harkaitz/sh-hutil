@@ -1,0 +1,5 @@
+#!/bin/sh -e
+ecode() { set +e; ( set -e; "$@" ); ecode=$?; set -e; }
+if test @"${SCRNAME}" = @"ecode" && test -n "${1}"; then
+    "$@"
+fi

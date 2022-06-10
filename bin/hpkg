@@ -27,12 +27,14 @@
 #h:
 #h: Program checker and installer.
 #h:
-#h:     Distros          : @void, @centos, @ubuntu, @FreeBSD.
+#h:     Distros          : @void, @centos, @ubuntu, @freebsd, @OpenBSD.
 #h:     Package managers : %dpkg, %rpm, %xbps, %pacman, %pkg, %npm,
 #h:                        %go, %gem, %pip3
 #h:
 #h: Options:
 #h:
+#h:     -v                  : Verbose operation.
+#h:     -m MSG              : Print message.
 #h:     -w PROGRAM [-w ...] : Skip installation if any of the programs is
 #h:                           not installed.
 #h:     -q                  : Quiet mode.
@@ -42,6 +44,11 @@
 #h:     -i {@D|%P} PKG...   : Install packages.
 #h:     -u {@D|%P} PKG...   : Remove packages.
 #h:     -c {@D|%P} ...      : Check the system has one of.
+#h:     -E {@D|%P} SERVICE  : Enable service.
+#h:     -R {@D|%P} SERVICE  : Restart service.
+#h:     -V {@D|%P} SERVICE  : Status of the service.
+#h:     -O {@D|%P} SERVICE  : Shutdown service.
+#h:     -X {@D|%P} SERVICE  : Disable service.
 #::
 if test -f /etc/profile.d/zz-go.sh;then
     . /etc/profile.d/zz-go.sh
@@ -49,20 +56,22 @@ fi
 hpkg() {
     ## Parse command line options.
     local OPTIND optopt= ops= skip=
-    while getopts "vDPqSiucw:" optopt;do # OPTARG
+    while getopts "vDPqSiucw:m:ERVOX" optopt; do # OPTARG
         local ops="${ops}${optopt}"
         case $optopt in
             v)  local HPKG_VERBOSE=y
                 ;;
-            w)  if test -f "${OPTARG}";then
+            w)  if test -e "${OPTARG}"; then
                     local skip="${skip:-y}"
-                elif which "${OPTARG}" >/dev/null 2>&1;then
+                elif which "${OPTARG}" >/dev/null 2>&1; then
                     local skip="${skip:-y}"
                 else
                     local skip=n
                 fi
                 ;;
             q)  export HPKG_QUIET=y
+                ;;
+            m)  printf '%s: %s\n' "${SCRNAME}" "${OPTARG}"
                 ;;
             \?) return 1
                 ;;
@@ -72,22 +81,27 @@ hpkg() {
    
     ## Operations.
     case "${ops}" in
-        *D*) echo "${DISTRO_ID}"       ;;
-        *P*) echo "${PACKAGE_MANAGER}" ;;
-        *S*) hpkg_select  "$@"         ;;
-        *i*) if test ! @"${skip}" = @"y";then
+        *D*) echo "${DISTRO_ID}"
+             ;;
+        *P*) echo "${PACKAGE_MANAGER}"
+             ;;
+        *S*) hpkg_select "$@"
+             ;;
+        *i*) if test ! @"${skip}" = @"y"; then
                  hpkg_install "$@" 
              fi
              ;;
-        *c*) if ! hpkg_check "$@";then
+        *c*) if ! hpkg_check "$@"; then
                  return 1
-             fi;;
-    esac
-    case "${ops}" in
-        *u*) if test @"${skip}" = @"y" || test @"${skip}" = @"";then
+             fi
+             ;;
+        *u*) if test @"${skip}" = @"y" || test @"${skip}" = @""; then
                  hpkg_remove "$@" 
              fi
              ;;
+        *E*|*R*|*V*|*O*|*X*)
+            hpkg_service_"${DISTRO_ID}" "${ops}" "$@"
+            ;;
     esac
 }
 hpkg_calc_variables() {
@@ -180,7 +194,7 @@ hpkg_install() {
         pacman) hpkg_vrun sudo pacman       --noconfirm -Sy ${pkgs} ;;
         pkg)    hpkg_vrun sudo pkg          install --yes   ${pkgs} ;;
         npm)    hpkg_vrun sudo npm          install -g      ${pkgs} ;;
-        go)     hpkg_vrun      go           get             ${pkgs} ;;
+        go)     hpkg_vrun      go           install         ${pkgs} ;;
         gem)    hpkg_vrun sudo gem          install --no-user-install -n /usr/bin ${pkgs} ;;
         pip3)   hpkg_vrun sudo pip3          install ${pkgs};;
         *)      hpkg_error "Unsupported package manager.";;
@@ -193,15 +207,100 @@ hpkg_remove() {
         return 1
     fi
     case "${PACKAGE_MANAGER}" in
-        dpkg)   sudo apt-get remove ${pkgs}     ;;
+        dpkg)   sudo apt-get remove ${pkgs} ||  true    ;;
         rpm)    : sudo yum -y remove ${pkgs}         ;;
-        xbps)   sudo xbps-remove ${pkgs}       ;;
+        xbps)   sudo xbps-remove ${pkgs} || true      ;;
         pacman) : sudo pacman --noconfirm -Sy ${pkgs} ;;
         pkg)    : sudo pkg uninstall --yes ${pkgs}      ;;
         npm)    : sudo npm uninstall -g ${pkgs}         ;;
         go)     : go get ${pkgs}                      ;;
         *)      hpkg_error "Unsupported package manager.";;
     esac
+}
+hpkg_service_void() {
+    local ops="$1" s= sleep=; shift
+    hpkg_select_var "$@"
+    if test ! -n "${HPKG_PACKAGES}"; then
+        hpkg_error "Unsupported platform." >&2
+        return 1
+    fi
+    for s in ${HPKG_PACKAGES}; do
+        local d="/etc/sv/${s}"
+        local l="/etc/runit/runsvdir/default/${s}"
+        case "${ops}" in
+            *E*) echo "${SCRNAME}: Enabling ${s} ..." >&2
+                 if test ! -e "${d}"; then
+                     hpkg_error "${s}: Service not found."
+                     return 1
+                 elif test ! -e "${l}"; then
+                     sudo ln -s "${d}" "${l}"
+                     local sleep=2
+                 fi
+                 ;;
+            *X*) if test -e "${l}"; then
+                     echo "${SCRNAME}: Shutting down ${s} ..." >&2
+                     sudo sv down   "${s}" >&2 || true
+                     echo "${SCRNAME}: Deleting ${s} service ..." >&2
+                     sudo rm -f "/etc/runit/runsvdir/default/${s}"
+                 fi
+                 ;;
+        esac
+    done
+    if test -n "${sleep}"; then
+        sleep "${sleep}"
+    fi
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *R*) echo "${SCRNAME}: Restarting ${s} ..." >&2
+                 sudo sv down   "${s}" >&2 || true
+                 sudo sv up     "${s}" >&2
+                 ;;
+            *O*) echo "${SCRNAME}: Shutting down ${s} ..." >&2
+                 sudo sv down   "${s}" >&2 || true
+                 ;;
+        esac
+    done
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *V*) sudo sv status "${s}"  >&2 || true;;
+        esac
+    done
+}
+hpkg_service_freebsd() {
+    local ops="$1" s=; shift
+    hpkg_select_var "$@"
+    if test ! -n "${HPKG_PACKAGES}"; then
+        hpkg_error "Unsupported platform." >&2
+        return 1
+    fi
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *E*) echo "${SCRNAME}: Enabling ${s} ..." >&2
+                 sudo service "${s}" enable
+                 ;;
+            *X*) echo "${SCRNAME}: Shutting down ${s} ..." >&2
+                 sudo service "${s}" stop >&2 || true
+                 echo "${SCRNAME}: Disabling ${s} service ..." >&2
+                 sudo service "${s}" disable
+                 ;;
+        esac
+    done
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *R*) echo "${SCRNAME}: Restarting ${s} ..." >&2
+                 sudo service "${s}" stop  >&2 || true
+                 sudo service "${s}" start >&2
+                 ;;
+            *O*) echo "${SCRNAME}: Shutting down ${s} ..." >&2
+                 sudo service "${s}" stop >&2 || true
+                 ;;
+        esac
+    done
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *V*) sudo service "${s}" status >&2 || true;;
+        esac
+    done
 }
 
 hpkg_check() {

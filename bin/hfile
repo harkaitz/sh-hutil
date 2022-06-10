@@ -177,17 +177,17 @@ hfile_fdel() { # [sudo] FILENAME BLOCKNAME
         local sudo=env
     fi
     local filename="$1" blkname="$2"
-    if test ! -n "${filename}";then
+    if test ! -n "${filename}"; then
         echo "${SCRNAME}: error: Please specify a filename." >&2
         exit 1
     fi
-    if test ! -n "${blkname}";then
+    if test ! -n "${blkname}"; then
         echo "${SCRNAME}: error: Please specify a name for the block." >&2
         exit 1
     fi
-    if ${sudo} test -f "${filename}";then
+    if ${sudo} test -f "${filename}"; then
         ${sudo} blkname="${blkname}" filename="${filename}" sh -c \
-                'sed "\\|-- *${blkname} *--|,\\|-- *${blkname} *--|d" "${filename}" > "${filename}.tmp"'
+                'sed "\\|--\\s*${blkname}\\s*--|,\\|--\\s*${blkname}\\s*--|d" "${filename}" > "${filename}.tmp"'
         ${sudo} cp "${filename}.tmp" "${filename}" # Docker issue. Can't use mv in /etc/hosts
         ${sudo} rm "${filename}.tmp"
     fi
