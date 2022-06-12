@@ -302,6 +302,43 @@ hpkg_service_freebsd() {
         esac
     done
 }
+hpkg_service_rocky() {
+    local ops="$1" s=; shift
+    hpkg_select_var "$@"
+    if test ! -n "${HPKG_PACKAGES}"; then
+        hpkg_error "Unsupported platform." >&2
+        return 1
+    fi
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *E*) echo "${SCRNAME}: Enabling ${s} ..." >&2
+                 sudo systemctl enable "${s}"
+                 ;;
+            *X*) echo "${SCRNAME}: Shutting down ${s} ..." >&2
+                 sudo systemctl stop "${s}" >&2 || true
+                 echo "${SCRNAME}: Disabling ${s} service ..." >&2
+                 sudo systemctl disable "${s}"
+                 ;;
+        esac
+    done
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *R*) echo "${SCRNAME}: Restarting ${s} ..." >&2
+                 sudo systemctl stop "${s}" >&2 || true
+                 sudo systemctl start "${s}" >&2
+                 ;;
+            *O*) echo "${SCRNAME}: Shutting down ${s} ..." >&2
+                 sudo systemctl stop "${s}" >&2 || true
+                 ;;
+        esac
+    done
+    for s in ${HPKG_PACKAGES}; do
+        case "${ops}" in
+            *V*) sudo systemctl status "${s}" >&2 || true;;
+        esac
+    done
+}
+
 
 hpkg_check() {
     local arg= ret=

@@ -26,77 +26,58 @@
 ##:
 #h: Usage: hmain [OPTIONS...] MAIN_F ARGS...
 #h: 
-#h: -f NAME   : Only execute if script's name matches.
-#h: -u UNAME  : If `uname -n` doesn't match UNAME skip.
-#h: -s SSH    : Instead of skipping `hsh -r SSH` instead.
-#h: -l ARG    : First arguments to be executed locally.
+#h: -f NAME : Only execute if script's name matches.
+#h: -s bash : Require `bash` as a shell (Set inherit_errexit).
+#h: -e      : Allow empty arguments.
 ##:
 hmain() {
-    local script= uname= ssh= locals= l=
+    local OPTIND optopt script='' main_f='' shell_r='' e_opt=''
+    
     ## Parse command line arguments.
-    local OPTIND optopt=
-    while getopts "f:u:s:l:" optopt;do
+    while getopts "f:s:e" optopt; do
         case $optopt in
-            f)  local script="${OPTARG}"
-                if test ! -n "${script}";then
-                    echo "hmain: error: Please specify a function name." >&2
-                    return 1
-                fi
-                ;;
-            u)  local uname="${OPTARG}"
-                if test ! -n "${uname}";then
-                    echo "hmain: error: Please specify a hostname." >&2
-                    return 1
-                fi
-                ;;
-            s)  local ssh="${OPTARG}"
-                if test ! -n "${ssh}";then
-                    echo "hmain: error: Please specify a ssh machine name." >&2
-                    return 1
-                fi
-                ;;
-            l)  local locals="${locals} ${OPTARG}" ;;
+            f)  script="${OPTARG}"  ;;
+            s)  shell_r="${OPTARG}" ;;
+            e)  e_opt=y;;
             \?) return 1;;
         esac
     done
     shift $(( $OPTIND - 1 ))
+    main_f="$1"
+    
+    ## Set terminal options.
+    if test ! -n "${HMAIN_SHELL}"; then
+        HMAIN_SHELL="`ps h -p "$$" -o args='' | cut -f1 -d' ' | xargs basename`"
+        case "${HMAIN_SHELL}" in
+            bash) shopt -s inherit_errexit ;;
+        esac
+    fi
+
+    ## Check the shell matches.
+    if test -n "${shell_r}" && test ! @"${shell_r}" = @"${HMAIN_SHELL}"; then
+        echo "${SCRNAME}: Module '${script}:${main_f}' requires '${shell_r}' using ${HMAIN_SHELL}." >&2
+        exit 1
+    fi
+
     ## Check the filename.
-    if test -n "${script}" && test ! @"${script}" = @"${BASENAME}";then
+    if test -n "${script}" && test ! @"${script}" = @"${BASENAME}"; then
         return 0
     fi
-    ## Get main function.
-    local main_f="$1"
-    if test ! -n "${main_f}";then
+
+    ## Require main function.
+    if test ! -n "${main_f}"; then
         return 0
     fi
     shift
+       
     ## Print help.
-    if test ! -n "$1" || test @"$1" = @"-h" || test @"$1" = @"--help";then
+    if test ! -n "${1:-${e_opt}}" || test @"${1}" = @"-h" || test @"${1}" = @"--help"; then
         sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|`basename $0`|g"
         echo ""
         sed -n 's/^ *#l: \{0,2\}//p' "$0"
         return 0
     fi
-    ## If local, execute locally.
-    for l in ${locals};do
-        if test @"${l}" = @"${1}";then
-            "${main_f}" "$@"
-            return 0
-        fi
-    done
-    ## Check the uname.
-    if test -n "${uname}";then
-        local hostname="`uname -n`"
-        if test @"${hostname}" = @"${uname}";then
-            true
-        elif test ! @"${HSH_BOOTSTRAP}" = @"y" && test -n "${ssh}";then
-            hsh -r "${ssh}" "$0" "$@"
-            return 0
-        else
-            echo "${SCRNAME}: error: Please execute this script on '${uname}'." >&2
-            return 1
-        fi
-    fi
+    
     ## Execute main.
     "${main_f}" "$@"
 }
