@@ -24,9 +24,43 @@
 #L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 #L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ##:
-#h: Usage: ecode COMMAND...
+#h: Usage: $0 "@a+@b" [scale=14] a=2 b=2
+#h:
+#h: A better, safer way of doing arithmetic in the shell
+#h: by using bc(1). The default scale is HBC_SCALE=12. 
 ##:
-ecode() { set +e; ( set -e; "$@" ); ecode=$?; set -e; }
-if test @"${SCRNAME}" = @"ecode" && test -n "${1}"; then
-    "$@"
+hbc() {
+    local cmd="${1}" sed="" var="" val="" num=1 scale="${HBC_SCALE:-12}"
+    shift
+    while test -n "$1"; do
+        var="`echo "${1}" | cut -d = -f 1`"
+        val="`echo "${1}" | cut -d = -f 2`"
+        if test ! -n "${var}"; then
+            var="${num}"
+            val="${1}"
+            num="$(( ${num} + 1 ))"
+        elif test @"${var}" = @"scale"; then
+            scale="${val}"
+            shift
+            continue
+        elif test ! -n "${val}"; then
+            return 1
+        fi
+        sed="${sed}`printf 's|@%s|(%.'"${scale}"'f)|g' "${var}" "${val}"`;"
+        shift
+    done
+    echo "scale=${scale}; ${cmd}" | sed "${sed}" | bc
+}
+SCRNAME="`basename "$0"`"
+if test @"${SCRNAME}" = @"hbc";then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            hbc "$@"
+            ;;
+    esac
 fi

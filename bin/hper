@@ -1,0 +1,82 @@
+#!/bin/sh -e
+#L:
+#L:  MIT License
+#L:  
+#l:  Bug reports, feature requests to gemini|https://harkadev.com/oss
+#l:  Copyright (c) 2022 Harkaitz Agirre, harkaitz.aguirre@gmail.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+##:
+#h: Usage: $0 [-vp] VAR[=VAL] ...
+#h:
+#h: Save and restore variables in permanent memory. 
+hper() {
+    local OPTIND optopt opt_p= varval= var= val=
+    ## Parse command line arguments.
+    while getopts "vp" optopt; do
+        case $optopt in
+            v)  printf '%-20s : %s\n' HPERDIR "${HPERDIR}";;
+            p)  local opt_p=y;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    ## For each variables.
+    mkdir -p "${HPERDIR}"
+    for varval in "$@"; do
+        case "${varval}" in
+            *=*)
+                var="`printf '%s\n' "${varval}" | sed    's|=.*||'      `"
+                val="`printf '%s\n' "${varval}" | sed -n 's|^[^=]*=||p' `"
+                export "${var}=${val}"
+                if test -n "${val}"; then
+                    printf '%s\n' "${val}" > "${HPERDIR}/${var}.txt"
+                else
+                    rm "${HPERDIR}/${var}.txt"
+                fi
+                ;;
+            *)
+                var="$1"
+                if test -e "${HPERDIR}/${var}.txt"; then
+                    export "${var}=`cat "${HPERDIR}/${var}.txt"`"
+                    if test -n "${opt_p}"; then
+                        cat "${HPERDIR}/${var}.txt"
+                    fi
+                else
+                    export "${var}="
+                fi
+                ;;
+        esac
+    done
+}
+SCRNAME="`basename "$0"`"
+HPERDIR="${HPERDIR:-${HOME}/.hper/${SCRNAME}}"
+if test @"${SCRNAME}" = @"hper"; then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            hper -p "$@"
+            ;;
+    esac
+fi

@@ -2,12 +2,20 @@
 
 ecode
 
+    Usage: ecode COMMAND...
 
 findup
 
     Usage: findup PATTERN
     
     Search a file or directory upwards and return the relative path.
+
+hbc
+
+    Usage: hbc "@a+@b" [scale=14] a=2 b=2
+    
+    A better, safer way of doing arithmetic in the shell
+    by using bc(1). The default scale is HBC_SCALE=12. 
 
 hcfg
 
@@ -59,10 +67,9 @@ hmain
 
     Usage: hmain [OPTIONS...] MAIN_F ARGS...
     
-    -f NAME   : Only execute if script's name matches.
-    -u UNAME  : If `uname -n` doesn't match UNAME skip.
-    -s SSH    : Instead of skipping `hsh -r SSH` instead.
-    -l ARG    : First arguments to be executed locally.
+    -f NAME : Only execute if script's name matches.
+    -s bash : Require `bash` as a shell (Set inherit_errexit).
+    -e      : Allow empty arguments.
 
 hmenu
 
@@ -71,6 +78,12 @@ hmenu
     An interactive menu for the terminal. It print the selected
     item to standard output. In the title and text the leading `    |`
     are removed.
+
+hper
+
+    Usage: hper [-vp] VAR[=VAL] ...
+    
+    Save and restore variables in permanent memory. 
 
 hpkg
 
@@ -174,10 +187,14 @@ hurl
 
     Usage:
     
+    URL encoding and decoding from the terminal.
+    
     hurl encode TEXT...
     hurl decode TEXT...
     hurl encode-i < FILE
     hurl decode-i < FILE
+    
+    hurl get VAR URL
 
 lrun
 

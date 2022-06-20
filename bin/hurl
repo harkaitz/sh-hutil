@@ -23,25 +23,33 @@
 #L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 #L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 #L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+##:
 #h: Usage:
+#h:
+#h: URL encoding and decoding from the terminal.
 #h:
 #h: $0 encode TEXT...
 #h: $0 decode TEXT...
 #h: $0 encode-i < FILE
 #h: $0 decode-i < FILE
-
+#h:
+#h: $0 get VAR URL
+##:
 hurl() {
     local cmd="$1"
     shift
     case "${cmd}" in
-        encode)
-            echo "$*" | hurl encode-i
-            ;;
-        decode)
-            echo "$*" | hurl decode-i
-            ;;
-        encode-i)
-            sed '
+        encode)   printf '%s\n' "$*" | hurl encode-i ;;
+        decode)   printf '%s\n' "$*" | hurl decode-i ;;
+        encode-i) hurl_encode_i                      ;;
+        decode-i) hurl_decode_i                      ;;
+        get)      hurl_get "$@"                      ;;
+        *)        echo "hurl: error: " >&2; return 1 ;;
+    esac
+}
+## -----------------------------------------------------------------------------
+hurl_encode_i() {
+    sed '
                 s/ /%20/g
                 s/!/%21/g
                 s/"/%22/g
@@ -53,9 +61,9 @@ hurl() {
                 s/)/%29/g
                 s/:/%3A/g
             '
-            ;;
-        decode-i)
-            awk -v RS='%[0-9a-fA-F]{2}' '
+}
+hurl_decode_i() {
+    awk -v RS='%[0-9a-fA-F]{2}' '
                 RT{
                    sub("%","0x",RT)
                    RT=sprintf("%c",strtonum(RT))
@@ -65,10 +73,14 @@ hurl() {
                    printf "%s", $0 RT
                 }
             '
-            ;;
-        *)  echo "${SCRNAME} [E]: " >&2
-            return 1;;
-    esac
+}
+hurl_get() {
+    local v="$1" u="$2"
+    printf '%s\n' "${u}"  \
+        | cut -d '?' -f 2 \
+        | tr '&' '\n'     \
+        | awk -F '=' -v v="${v}" '$1 == v {print $2}' \
+        | hurl_decode_i
 }
 ## -----------------------------------------------------------------------------
 SCRNAME="`basename "$0"`"
