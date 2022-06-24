@@ -28,22 +28,32 @@
 #h: 
 #h: -f NAME : Only execute if script's name matches.
 #h: -s bash : Require `bash` as a shell (Set inherit_errexit).
+#h: -r PROG : Require program.
 #h: -e      : Allow empty arguments.
 ##:
 hmain() {
-    local OPTIND optopt script='' main_f='' shell_r='' e_opt=''
+    local OPTIND optopt script='' main_f='' shell_r='' e_opt='' progs='' p=''
     
     ## Parse command line arguments.
-    while getopts "f:s:e" optopt; do
+    while getopts "f:s:r:e" optopt; do
         case $optopt in
             f)  script="${OPTARG}"  ;;
             s)  shell_r="${OPTARG}" ;;
             e)  e_opt=y;;
+            r)  progs="${progs} ${OPTARG}";;
             \?) return 1;;
         esac
     done
     shift $(( $OPTIND - 1 ))
     main_f="$1"
+
+    ## Check required programs.
+    for p in ${progs}; do
+        if ! which "${p}" >/dev/null 2>&1; then
+            echo "${SCRNAME}: Required program missing: ${p}" >&2
+            HMAIN_READY="1"
+        fi
+    done
     
     ## Set terminal options.
     if test ! -n "${HMAIN_SHELL}"; then
@@ -79,11 +89,16 @@ hmain() {
     fi
     
     ## Execute main.
+    if test @"${HMAIN_READY}" = @"1"; then
+        exit 1
+    fi
     "${main_f}" "$@"
+    exit 0
 }
 ## -----------------------------------------------------------------------------
 SCRNAME="`basename "$0"`"
 BASENAME="${SCRNAME}"
+HMAIN_READY="0"
 if test @"${SCRNAME}" = @"hmain";then
     case "${1}" in
         ''|-h|--help)

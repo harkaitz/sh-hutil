@@ -62,7 +62,7 @@ hmenu() {
     fi
     ## Print title.
     if test ! -n "${osel}" && test -n "${ofun}${otitle}"; then
-        clear
+        clear >&2
         test ! -n "${otitle}" || printf "\033[0;32m%s\033[0m\\n" "${otitle}" >&2
         test ! -n "${msg}"    || printf "\\n%s\\n\\n"            "${msg}"    >&2
     fi
@@ -94,7 +94,6 @@ hmenu() {
         fi
         ## Internal commands.
         case "${sel}" in
-            q|quit) return 0;;
             h|help) printf '%s\n' "${msg:-${otitle}}" >&2; continue;;
             '')     continue;;
         esac
@@ -111,6 +110,7 @@ hmenu() {
         fi
         ## Finished.
         if test -n "${ofun}"; then
+            case "${sel}" in q|quit) return 0;; esac
             local fun="${ofun}`echo "${sel}" | tr '-' '_' | tr '.' '_'`"
             if test -n "${osel}"; then
                 "${fun}" "$@"
@@ -119,7 +119,6 @@ hmenu() {
                 ecode "${fun}" ${args}
                 continue
             fi
-            
         else
             echo "${sel}" "$@"
             break
