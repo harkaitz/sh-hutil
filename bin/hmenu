@@ -30,7 +30,8 @@
 #h: item to standard output. In the title and text the leading `    |`
 #h: are removed.
 hmenu() {
-    
+    HMENU_CMD=
+    HMENU_ARGS=
     ## Parse command line arguments.
     local prompt="${SCRNAME}> "
     local msg=
@@ -41,8 +42,9 @@ hmenu() {
     local otitle=
     local oclear=
     local oquit=
+    local ovar=
     local OPTIND optopt=
-    while getopts "m:p:o:f:t:cq" optopt;do # OPTARG
+    while getopts "m:p:o:f:t:cqV" optopt;do # OPTARG
         case $optopt in
             m)  local msg="`   printf '%s\n' "${OPTARG}" | sed 's/^ *| \{0,1\}//'`" ;;
             p)  local prompt="`printf '%s\n' "${OPTARG}" | sed 's/^ *| \{0,1\}//'`" ;;
@@ -51,6 +53,7 @@ hmenu() {
             f)  local ofun="${OPTARG}"         ;;
             c)  local oclear="y"               ;;
             q)  local oquit="y"                ;;
+            V)  local ovar="y"                 ;;
             \?) return 1;;
         esac
     done
@@ -98,7 +101,9 @@ hmenu() {
             '')     continue;;
         esac
         ## Check it is valid.
-        if test -n "${opts}"; then
+        if test -n "${opts}"       && \
+           test ! @"${sel}" = @"q" && \
+           test ! @"${sel}" = @"quit"; then
             local match=
             for o in ${opts}; do
                 case "${sel}" in "${o}") local match="${sel}"; break;; esac
@@ -110,7 +115,7 @@ hmenu() {
         fi
         ## Finished.
         if test -n "${ofun}"; then
-            case "${sel}" in q|quit) return 0;; esac
+            case "${sel}" in q|quit) break;; esac
             local fun="${ofun}`echo "${sel}" | tr '-' '_' | tr '.' '_'`"
             if test -n "${osel}"; then
                 "${fun}" "$@"
@@ -119,6 +124,11 @@ hmenu() {
                 ecode "${fun}" ${args}
                 continue
             fi
+        elif test -n "${ovar}"; then
+            case "${sel}" in q|quit) break;; esac
+            HMENU_CMD="${sel}"
+            HMENU_ARGS="$*"
+            break
         else
             echo "${sel}" "$@"
             break

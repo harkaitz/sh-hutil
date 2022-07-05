@@ -69,6 +69,7 @@ hmain
     
     -f NAME : Only execute if script's name matches.
     -s bash : Require `bash` as a shell (Set inherit_errexit).
+    -r PROG : Require program.
     -e      : Allow empty arguments.
 
 hmenu
@@ -228,6 +229,9 @@ vcd
 vrun
 
     Usage: vrun COMMAND...
+
+xfilter
+
 
 ## Collaborating
 

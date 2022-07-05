@@ -1,0 +1,22 @@
+#!/bin/sh -e
+xfilter() {
+    local l=
+    while read -r l; do
+        if "$@" "${l}"; then
+            printf '%s\n' "${l}"
+        fi
+    done
+}
+SCRNAME="`basename "$0"`"
+if test @"${SCRNAME}" = @"xfilter";then
+    case "${1}" in
+        ''|-h|--help)
+            sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+            echo ""
+            sed -n 's/^ *#l: \{0,2\}//p' "$0"
+            ;;
+        *)
+            xfilter "$@"
+            ;;
+    esac
+fi
