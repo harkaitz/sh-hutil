@@ -1,15 +1,19 @@
 DESTDIR     =
 PREFIX      =/usr/local
-SCRIPTS_BIN =$(shell test ! -d bin || find bin -executable -type f)
-MANPAGES_1  =$(shell test ! -d man || find man -iregex '.*\.1$$')
 all:
 clean:
 install:
-    ifneq ($(SCRIPTS_BIN),)
+## -- license --
+ifneq ($(PREFIX),)
+install: install-license
+install-license: LICENSE
+	mkdir -p $(DESTDIR)$(PREFIX)/share/doc/sh-hutil
+	cp LICENSE $(DESTDIR)$(PREFIX)/share/doc/sh-hutil
+endif
+## -- license --
+## -- install-sh --
+install: install-sh
+install-sh:
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	cp $(SCRIPTS_BIN) $(DESTDIR)$(PREFIX)/bin
-    endif
-    ifneq ($(MANPAGES_1),)
-	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1
-	cp $(MANPAGES_1) $(DESTDIR)$(PREFIX)/share/man/man1
-    endif
+	cp bin/lrun bin/xfilter bin/hlog bin/vrun bin/hget bin/hurl bin/vcd bin/hfile bin/hstr bin/hterm bin/hrand bin/hmenu bin/hbc bin/ecode bin/hper bin/hpkg bin/findup bin/hcfg bin/hextract bin/hmain bin/pathinfo bin/hsh  $(DESTDIR)$(PREFIX)/bin
+## -- install-sh --
