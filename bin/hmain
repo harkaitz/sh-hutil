@@ -28,17 +28,19 @@
 #h: 
 #h: -f NAME : Only execute if script's name matches.
 #h: -s bash : Require `bash` as a shell (Set inherit_errexit).
+#h: -R      : Require execution as root.
 #h: -r PROG : Require program.
 #h: -e      : Allow empty arguments.
 ##:
 hmain() {
-    local OPTIND optopt script='' main_f='' shell_r='' e_opt='' progs='' p=''
+    local OPTIND optopt script='' main_f='' shell_r='' e_opt='' progs='' p='' root=''
     
     ## Parse command line arguments.
-    while getopts "f:s:r:e" optopt; do
+    while getopts "f:s:Rr:e" optopt; do
         case $optopt in
             f)  script="${OPTARG}"  ;;
             s)  shell_r="${OPTARG}" ;;
+            R)  root=y;;
             e)  e_opt=y;;
             r)  progs="${progs} ${OPTARG}";;
             \?) return 1;;
@@ -47,6 +49,12 @@ hmain() {
     shift $(( $OPTIND - 1 ))
     main_f="$1"
 
+    ## Check user.
+    if test -n "${root}" && test ! -w /bin/sh; then
+        echo "${SCRNAME}: This script requires to be launched as root."
+        exit 1
+    fi
+    
     ## Check required programs.
     for p in ${progs}; do
         if ! which "${p}" >/dev/null 2>&1; then
