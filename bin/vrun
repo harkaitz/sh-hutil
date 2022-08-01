@@ -28,7 +28,7 @@ vrun() {
     echo "${SCRNAME}: $*" >&2
     "$@"
 }
-SCRNAME="`basename "$0"`"
+SCRNAME="${SCRNAME:-`basename "$0"`}"
 if test @"${SCRNAME}" = @"vrun";then
     case "${1}" in
         ''|-h|--help)

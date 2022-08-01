@@ -208,7 +208,7 @@ hterm_vars() {
 
 
 ## -----------------------------------------------------------------------------
-SCRNAME="`basename "$0"`"
+SCRNAME="${SCRNAME:-`basename "$0"`}"
 if test @"${SCRNAME}" = @"hterm";then
     case "${1}" in
         ''|-h|--help)

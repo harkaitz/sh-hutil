@@ -28,7 +28,7 @@
 #h: Program checker and installer.
 #h:
 #h:     Distros          : @void, @centos, @ubuntu, @freebsd, @OpenBSD.
-#h:     Package managers : %dpkg, %rpm, %xbps, %pacman, %pkg, %npm,
+#h:     Package managers : %dpkg, %rpm, %xbps, %pacman, %pkg, %npm, %apk
 #h:                        %go, %gem, %pip3
 #h:
 #h: Options:
@@ -114,18 +114,20 @@ hpkg_calc_variables() {
             export DISTRO_ID="`uname -s`"
         fi
     fi
-    if test -n "${PACKAGE_MANAGER}";then
+    if test -n "${PACKAGE_MANAGER}"; then
         true
-    elif test -f /usr/bin/apt-get;then
+    elif test -f /usr/bin/apt-get; then
         export PACKAGE_MANAGER=dpkg
-    elif test -f /usr/bin/yum;then
+    elif test -f /usr/bin/yum; then
         export PACKAGE_MANAGER=rpm
-    elif test -f /usr/bin/xbps-install;then
+    elif test -f /usr/bin/xbps-install; then
         export PACKAGE_MANAGER=xbps
-    elif test -f /usr/bin/pacman;then
+    elif test -f /usr/bin/pacman; then
         export PACKAGE_MANAGER=pacman
-    elif test -f /usr/sbin/pkg;then
+    elif test -f /usr/sbin/pkg; then
         export PACKAGE_MANAGER=pkg
+    elif test -f /sbin/apk; then
+        export PACKAGE_MANAGER=apk
     else
         export PACKAGE_MANAGER=unknown
     fi
@@ -197,6 +199,7 @@ hpkg_install() {
         go)     hpkg_vrun      go           install         ${pkgs} ;;
         gem)    hpkg_vrun sudo gem          install --no-user-install -n /usr/bin ${pkgs} ;;
         pip3)   hpkg_vrun sudo pip3          install ${pkgs};;
+        apk)    hpkg_vrun sudo apk          add ${pkgs};;
         *)      hpkg_error "Unsupported package manager.";;
     esac
 }
@@ -360,7 +363,7 @@ hpkg_vrun() {
 
 
 ## -----------------------------------------------------------------------------
-SCRNAME="`basename "$0"`"
+SCRNAME="${SCRNAME:-`basename "$0"`}"
 hpkg_calc_variables
 if test @"${SCRNAME}" = @"hpkg";then
     case "${1}" in

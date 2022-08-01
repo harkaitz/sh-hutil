@@ -210,7 +210,7 @@ hfile_flst() { # [sudo] FILENAME [COMMENT]
 ## -----------------------------------------------------------------------------
 hfile_optopt() { local s="${2:-=}"; echo "$1" | sed -n 's|^\(-*[^'"$s"' ][^'"$s"' ]*\).*|\1|p'; }
 hfile_optarg() { local s="${2:-=}"; echo "$1" | sed -n 's|^-*[^'"$s"'][^'"$s"']*'"$s"'||p'; }
-SCRNAME="`basename "$0"`"
+SCRNAME="${SCRNAME:-`basename "$0"`}"
 if test @"${SCRNAME}" = @"hfile";then
     case "${1}" in
         ''|-h|--help)

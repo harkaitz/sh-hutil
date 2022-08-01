@@ -65,7 +65,11 @@ hmain() {
     
     ## Set terminal options.
     if test ! -n "${HMAIN_SHELL}"; then
-        HMAIN_SHELL="`ps h -p "$$" -o args='' | cut -f1 -d' ' | xargs basename`"
+        if test @"${SHELL}" = @"/bin/ash"; then
+            HMAIN_SHELL="`basename "${SHELL}"`"
+        else
+            HMAIN_SHELL="`ps h -p "$$" -o args='' | cut -f1 -d' ' | xargs basename`"
+        fi
         case "${HMAIN_SHELL}" in
             bash) shopt -s inherit_errexit ;;
         esac
@@ -90,7 +94,7 @@ hmain() {
        
     ## Print help.
     if test ! -n "${1:-${e_opt}}" || test @"${1}" = @"-h" || test @"${1}" = @"--help"; then
-        sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|`basename $0`|g"
+        sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
         echo ""
         sed -n 's/^ *#l: \{0,2\}//p' "$0"
         return 0
@@ -104,7 +108,7 @@ hmain() {
     exit 0
 }
 ## -----------------------------------------------------------------------------
-SCRNAME="`basename "$0"`"
+SCRNAME="${SCRNAME:-`basename "$0"`}"
 BASENAME="${SCRNAME}"
 HMAIN_READY="0"
 if test @"${SCRNAME}" = @"hmain";then
