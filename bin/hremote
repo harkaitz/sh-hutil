@@ -1,0 +1,104 @@
+#!/bin/sh -e
+##:
+#h: Usage: hremote [OPTIONS...] MAIN_F ARGS...
+#h:
+#h: -f NAME  : Only execute if script's name matches.
+#h: -c SSH   : Run the script in this machine.
+#h: -l FUNC  : Skip if 'FUNC ARGS...' sets 'skip=0'.
+#h: -V VAR   : Fetch variable from localhost.
+#h: -H SCR   : Script from which to print help.
+#h: -X       : Forward X11.
+#h: -e       : Allow empty arguments.
+##:
+hremote() {
+
+    local OPTIND optopt main_f bundle v code='' script='' ssh='' opt_e='' local_f='' skip='' args='' hlp=''
+    
+    ## Parse command line arguments.
+    while getopts "f:c:el:XV:H:" optopt; do
+        case $optopt in
+            f)  script="${OPTARG}"    ;;
+            c)  ssh="${OPTARG}"       ;;
+            e)  opt_e=y               ;;
+            l)  local_f="${OPTARG}"   ;;
+            V)  eval "v=\${$OPTARG}"
+                code="${code} $OPTARG='$v'"
+                if test ! -n "$v"; then
+                    echo "error: Please set $OPTARG." >&2
+                    return 1
+                fi
+                ;;
+            X)  local HREMOTE_FORWARD_X11=y ;;
+            H)  hlp="${OPTARG}";;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    if test ! -n "${1}"; then
+        echo "error: Please specify a function." >&2
+        exit 1
+    fi
+    main_f="$1"
+    shift
+    
+
+    ## Skip if not the file.
+    if test -n "${script}" && test ! @"${script}" = @"${BASENAME}"; then
+        return 0
+    fi
+
+    ## Print help.
+    if test ! -n "${1:-${opt_e}}" || test @"${1}" = @"-h" || test @"${1}" = @"--help"; then
+        if test -n "${hlp}"; then
+            hlp="`which "${hlp}"`"
+        fi
+        sed -n 's/^ *#h: \{0,1\}//p' "${hlp:-$0}" | sed "s|\\\$0|${SCRNAME}|g"
+        echo ""
+        sed -n 's/^ *#l: \{0,2\}//p' "${hlp:-$0}"
+        exit 0
+    fi
+
+    ## Bootstrap.
+    if test ! -n "${HREMOTE_BOOTSTRAP}" && test ! -n "${HSH_BOOTSTRAP}" && test -n "${ssh}"; then
+        if test -n "${local_f}"; then
+            "${local_f}" "$@"
+            if test -n "${skip}"; then
+                exit "${skip}"
+            fi
+        fi
+        args="`hremote_escape "$@"`"
+        export HSH_PRE_CODE="
+            HREMOTE_BOOTSTRAP='${SCRNAME}'
+            HLOG_NO_PREFIX='y'
+            SCRNAME='${SCRNAME}'
+            $code
+            set -e
+            "
+        export HSH_SED='s|`basename "$0"`|HSH|g'
+        export HSH_POST_CODE="
+            ${main_f} ${args} 
+            "
+        hsh -r "${ssh}" "$0"
+        exit 0
+    fi
+
+    ## Execute.
+    ${main_f} "$@"
+    exit 0
+}
+hremote_escape() {
+    local ret="" arg=""
+    for arg in "$@";do
+        local ret="$ret '`echo "$arg" | sed "s|'|'\\\\\\''|g"`'"
+    done
+    printf '%s\n' "$ret"
+}
+## -------------------------------------------------------------------
+SCRNAME="$(basename "$0")"
+BASENAME="${SCRNAME}"
+if test @"${SCRNAME}" = @"hremote";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            echo "error: Never run 'hmain' directory, instead source it." >&2; exit 1;;
+    esac
+fi

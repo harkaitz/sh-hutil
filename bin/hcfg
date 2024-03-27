@@ -1,0 +1,44 @@
+#!/bin/sh -e
+##:
+#h: Usage: hcfg [-p]
+#h:
+#h: Read configuration from "/etc/config.sh" or "~/.config.sh" or print
+#h: it to the terminal with "-p". 
+##:
+hcfg() {
+    ## Parse command line options.
+    local OPTIND optopt= ops= text= f=
+    while getopts "p" optopt;do # OPTARG
+        case $optopt in
+            p)  for f in ${HCFG_SYS_FILE} ${HCFG_USR_FILE};do
+                    echo "## ${f}"
+                    test ! -f "${f}" || cat "${f}"
+                done;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+}
+## -------------------------------------------------------------------
+SCRNAME="`basename "$0"`"
+HCFG_SYS_FILE="/etc/config.sh"
+HCFG_USR_FILE="${HOME}/.config.sh"
+if test ! -n "${HCFG_LOADED}";then
+    for f in ${HCFG_SYS_FILE} ${HCFG_USR_FILE};do
+        if test ! -f "${f}";then
+            true
+        elif . "${f}"; then
+            true
+        else
+            echo "${SCRNAME} : Error in configuration file ${f}" >&2
+        fi
+    done
+    HCFG_LOADED=1
+fi
+## -------------------------------------------------------------------
+if test @"${SCRNAME}" = @"hcfg";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            hcfg "$@"; exit 0;;
+    esac
+fi

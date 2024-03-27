@@ -1,0 +1,23 @@
+#!/bin/sh -e
+##:
+#h: Usage: hopen FILE|URI
+#h:
+#h: A wrapper around MS/Windows "start" and POSIX "xdg-open".
+##:
+hopen() {
+    case "$(uname -s)" in
+        MSYS*|CYGWIN*|Windows_NT)
+            case "$1" in
+                *://*) cmd /C start "$1";;
+                *)     cmd /C start "$(echo "$1" | tr '/' '\\')";;
+            esac
+        *)
+            /usr/bin/xdg-open "$1";;
+    esac
+}
+if test @"$(basename "$0")" = @"hopen"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            hopen "$@"; exit 0;;
+    esac
+fi

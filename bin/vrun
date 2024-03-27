@@ -1,0 +1,22 @@
+#!/bin/sh -e
+##:
+#h: Usage: vrun COMMAND...
+#h:
+#h: Print and execute command. If HLOG_NO_PREFIX is set then the
+#h: program's prefix will not be printed.
+##:
+vrun() {
+    if test -n "${HLOG_NO_PREFIX}"; then
+        echo "$*" >&2
+    else
+        echo "${SCRNAME}: $*" >&2
+    fi
+    "$@"
+}
+SCRNAME="${SCRNAME:-$(basename "$0")}"
+if test @"${SCRNAME}" = @"vrun";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            HLOG_NO_PREFIX=y; vrun "$@"; exit 0;;
+    esac
+fi

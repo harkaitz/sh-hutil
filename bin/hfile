@@ -1,0 +1,200 @@
+#!/bin/sh -e
+##:
+#h: Usage: hfile ...
+#h:
+#h: This tool helps creating and modifying text files.
+#h:
+#h: Create files.
+#h:
+#h: ... create  [sudo] FILE < CONTENT            : Create file.
+#h: ... wrapper [sudo] FILE < CONTENT            : Create executable file.
+#h:
+#h: Sections delimited by "-- NAME --" blocks.
+#h:
+#h: ... fcom FILE [TEXT]                         : Print the comment for FILE or comment TEXT.
+#h: ... fadd [sudo] FILENAME BLOCKNAME [COMMENT] : Add block to file.
+#h: ... fdel [sudo] FILENAME BLOCKNAME           : Delete block from the file.
+#h: ... flst [sudo] FILENAME [COMMENT]           : Print list of blocks.
+#h:
+#h: Variables with "NAME=VALUE" format.
+#h:
+#h: ... cfadd [sudo] FILE VARIABLE=VALUE ... : Set variable. The VARIABLE=VALUE format.
+#h: ... cfdel [sudo] FILE VARIABLE           : Delete variable.
+#h:
+#h: Source this with with ". hfile" from your script or copy to it.
+##:
+hfile() {
+    local cmd="$1"
+    shift
+    case "${cmd}" in
+        create|wrapper|fcom|fadd|fdel|flst|cfadd|cfdel) hfile_"${cmd}" "$@";;
+        *) echo "hfile: error: Invalid argument '${cmd}'." >&2; return 1;;
+    esac
+}
+## -------------------------------------------------------------------
+hfile_cfadd() {
+    local sudo=
+    if test @"${1}" = @"sudo";then local sudo=sudo; shift; fi
+    local filename="${1}"
+    shift
+    for arg in "$@";do
+        local var="`hfile_optopt "${arg}"`" val="`hfile_optarg "${arg}"`"
+        local val="${val:-YES}"
+        if ${sudo} test -f "${filename}" && ${sudo} grep "^${var}=" "${filename}" >/dev/null;then
+            ${sudo} sed -i".tmp" "/^${var}=/s|=.*|=${val}|" "${filename}"
+            ${sudo} rm -f "${filename}.tmp"
+        elif test -n "${sudo}";then
+            ${sudo} var="${var}" val="${val}" filename="${filename}" sh -c \
+                    'echo "${var}=${val}" >> "${filename}"'
+        else
+            echo "${var}=${val}" >> "${filename}"
+        fi
+    done
+}
+hfile_cfdel() {
+    local sudo=
+    if test @"${1}" = @"sudo";then local sudo=sudo; shift; fi
+    local filename="${1}"
+    shift
+    if ${sudo} test -f "${filename}";then
+        for var in "$@";do
+            ${sudo} sed -i".tmp" "/^${var}=/d" "${filename}"
+        done
+    fi
+}
+hfile_create() { # [sudo] FILENAME
+    if test @"$1" = @"sudo";then
+        sudo filename="${2}" sh -c '
+            mkdir -p "`dirname "${filename}"`"
+            cat > "${filename}"
+        '
+    else
+        if test -n "${1}";then
+            mkdir -p "`dirname "${filename}"`"
+        fi
+        cat > "${1:-/dev/stdout}"
+    fi
+}
+hfile_wrapper() { # [sudo] FILENAME
+    if test @"$1" = @"sudo";then
+        sudo filename="${2}" sh -c '
+            mkdir -p "`dirname "${filename}"`"
+            cat > "${filename}"
+            chmod +x "${filename}"
+        '
+    else
+        local filename="${1}"
+        cat > "${filename}"
+        chmod +x "${filename}"
+    fi
+}
+hfile_fcom() { # FILENAME [COMMENT]
+    local filename="${1}" comment=; shift
+    case "${filename}" in
+        *.el|*.gnus) local comment=";; %s";;
+        *.xml)       local comment="<!-- %s -->";;
+        *)           local comment="## %s";;
+    esac
+    if test -n "${1}";then
+        printf "${comment}\\n" "$*"
+    else
+        echo "${comment}" | sed 's| *%s||'
+    fi
+}
+hfile_fadd() { # [sudo] FILENAME BLOCKNAME [COMMENT]
+    if test @"$1" = @"sudo";then
+        local sudo=sudo
+        shift
+    else
+        local sudo=
+    fi
+    local filename="${1}" blkname="${2}" comment="$3"
+    hfile_fdel $sudo "${filename}" "${blkname}"
+    if test -n "${comment}";then
+        local comment="${comment} -- ${blkname} --"
+    else
+        local comment="`hfile_fcom "${filename}" -- "${blkname}" --`"
+    fi
+    local text="${comment}
+`cat`
+${comment}"
+    if test -n "${sudo}";then
+        "${sudo}" F="${filename}" T="${text}" sh -c 'printf "%s\n" "${T}" >> "${F}"'
+    else
+        printf '%s\n' "${text}" >> "${filename}"
+    fi
+}
+hfile_fins() { # [sudo] FILENAME BLOCKNAME [COMMENT]
+    if test @"$1" = @"sudo";then
+        local sudo=sudo
+        shift
+    else
+        local sudo=
+    fi
+    local filename="${1}" blkname="${2}" comment="$3"
+    hfile_fdel $sudo "${filename}" "${blkname}"
+    if test -n "${comment}";then
+        local comment="${comment} -- ${blkname} --"
+    else
+        local comment="`hfile_fcom "${filename}" -- "${blkname}" --`"
+    fi
+    local text="${comment}
+`cat`
+${comment}"
+    if ${sudo} test -f "${filename}";then
+        local text="${text}`${sudo} cat ${filename}`
+"
+    fi
+    if test -n "${sudo}";then
+        "${sudo}" F="${filename}" T="${text}" sh -c 'echo "${T}" > "${F}"'
+    else
+        echo "${text}" > "${filename}"
+    fi
+}
+hfile_fdel() { # [sudo] FILENAME BLOCKNAME
+    if test @"$1" = @"sudo";then
+        local sudo=sudo
+        shift
+    else
+        local sudo=env
+    fi
+    local filename="$1" blkname="$2"
+    if test ! -n "${filename}"; then
+        echo "${SCRNAME}: error: Please specify a filename." >&2
+        exit 1
+    fi
+    if test ! -n "${blkname}"; then
+        echo "${SCRNAME}: error: Please specify a name for the block." >&2
+        exit 1
+    fi
+    if ${sudo} test -f "${filename}"; then
+        ${sudo} blkname="${blkname}" filename="${filename}" sh -c \
+                'sed "\\|-- *${blkname} *--|,\\|-- *${blkname} *--|d" "${filename}" > "${filename}.tmp"'
+        ${sudo} cp "${filename}.tmp" "${filename}" # Docker issue. Can't use mv in /etc/hosts
+        ${sudo} rm "${filename}.tmp"
+    fi
+}
+hfile_flst() { # [sudo] FILENAME [COMMENT]
+    if test @"$1" = @"sudo";then
+        local sudo=sudo
+        shift
+    else
+        local sudo=env
+    fi
+    local filename="${1}" comment="${2}"
+    if ${sudo} test -f "${filename}";then
+        local comment="${comment:-`hfile_fcom "${filename}" | tr ';' '.' | tr '!' '.' | tr '*' '.'`}"
+        sed -n 's|^'"${comment}"' *-- \(.*\) --.*|\1|p' "${filename}" | uniq
+    fi
+}
+## -------------------------------------------------------------------
+hfile_optopt() { local s="${2:-=}"; echo "$1" | sed -n 's|^\(-*[^'"$s"' ][^'"$s"' ]*\).*|\1|p'; }
+hfile_optarg() { local s="${2:-=}"; echo "$1" | sed -n 's|^-*[^'"$s"'][^'"$s"']*'"$s"'||p'; }
+SCRNAME="${SCRNAME:-$(basename "$0")}"
+if test @"${SCRNAME}" = @"hfile";then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            hfile "$@"; exit 0;;
+    esac
+fi
+

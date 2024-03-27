@@ -1,0 +1,179 @@
+#!/bin/sh -e
+##:
+#h: Usage: hterm ...
+#h:
+#h:     iecho ... : Print to `/dev/tty` if available.
+#h:     iread ... : Read from `/dev/tty` if available.
+#h:     color [COLOR|list] [MESSAGE] : Set/unset color, only for message.
+#h:
+#h:     ask    TXT [DEFAULT]   : Ask input and print result.
+#h:     stop   LINE1 LINE2...  : Ask user whether to continue and `exit 1` if not.
+#h:     yn     TXT [DEFAULT]   : Ask yes of no. Fail if no.
+#h:     hidden TXT             : Ask input without echo.
+#h:
+#h:     ask-directory [TXT] [DIR] [DEFAULT]          :
+#h:     ask-filename  [TXT] [DIR] [DEFAULT] [SUFFIX] :
+#h:
+#h:     truncate       : Truncate to terminal size.
+##:
+hterm() {
+    local cmd="$1"
+    shift
+    case "${cmd}" in
+        iecho|iread|color)  hterm_"${cmd}" "$@" ;;
+        ask|yn|stop|hidden) hterm_"${cmd}" "$@" ;;
+        ask-directory) hterm_ask_directory "$@" ;;
+        ask-filename)  hterm_ask_filename "$@"  ;;
+        truncate)      hterm_truncate           ;;
+        *) echo "error: Invalid argument ${cmd}." >&2; return 1;;
+    esac
+}
+## -------------------------------------------------------------------
+hterm_iecho() {
+    if test -e /dev/tty;then echo >/dev/tty "$@";else echo "$@";fi
+}
+hterm_iread() {
+    if test -e /dev/tty;then read </dev/tty "$@";else read "$@";fi
+}
+hterm_color() {
+    #:: color [[l]{gray,red,green,blue,purple,cyan}|black|white|orange|yellow] : Set color.
+    if test -t 1 || test -n "${ENFORCE_COLOR}";then
+        case "$1" in
+            list)
+                echo "[l]gray [l]red [l]green [l]blue [l]purple"
+                echo "[l]cyan black  white    orange  yellow"
+                return 0
+                ;;
+            "")     printf "\033[0m"   ;;
+            black)  printf "\033[0;30m";;
+            gray)   printf "\033[1;30m";; lgray)   printf "\033[0;37m";;
+            red)    printf "\033[0;31m";; lred)    printf "\033[1;31m";;
+            green)  printf "\033[0;32m";; lgreen)  printf "\033[1;32m";;
+            blue)   printf "\033[0;34m";; lblue)   printf "\033[1;34m";;
+            purple) printf "\033[0;35m";; lpurple) printf "\033[1;35m";;
+            cyan)   printf "\033[0;36m";; lcyan)   printf "\033[1;36m";;
+            
+            orange) printf "\033[0;33m";;
+            yellow) printf "\033[1;33m";;
+            
+            
+            white)  printf "\033[1;37";;
+        esac
+    fi
+    if test ! -n "$1";then
+        true
+    elif test -n "$2";then
+        echo "$2"
+        hterm color
+    fi
+}
+hterm_ask() {
+    local txt="$1" res=""; shift
+    while true;do
+        hterm_iecho -n "$txt [$1] > "; hterm_iread res
+        if test -n "${res:-$1}";then break;fi
+    done
+    echo "${res:-$1}"
+}
+hterm_yn() {
+    local line=
+    while true;do
+        local line="`hterm_ask "$@"`"
+        case "$line" in
+            y|yes|Y) return 0;;
+            *)       return 1;;
+        esac
+    done
+}
+hterm_stop() {
+    local n=
+    for n in "$@";do hterm_iecho "$n"; done
+    if ! hterm_yn "Continue?" n;then
+        echo "${SCRNAME}: error: Operation cancelled by the user." >&2
+        exit 1
+    fi
+}
+hterm_hidden() {
+    local txt="$1" val=""
+    printf "%s" "$txt" >&2
+    if which stty >/dev/null 2>&1;then
+        stty -echo
+        read val || true
+        stty echo;
+        printf "\n" >&2
+        echo "$val"
+    elif which busybox >/dev/null 2>&1;then
+        busybox sh -c 'read -s val && echo "$val"'
+        echo >&2
+    elif which bash >/dev/null 2>&1;then
+        printf "Password [$var]: " >&2
+        bash -c 'read -s val && echo "$val"'
+        echo >&2
+    else
+        read val
+        echo "$val"
+    fi
+}
+hterm_ask_directory() { # [TEXT] [DIR] [DEFAULT]
+    local text="${1:-Specify a directory name}" dir="${2:-`pwd`}" default="$3" d=
+    if test ! -d "${dir}";then
+        echo "${SCRNAME}: error: Directory '${dir}' does not exist." >&2
+        return 1
+    fi
+    printf 'Directory `%s`:\n' "${dir}" >&2
+    find "${dir}" -maxdepth 1 -mindepth 1 -type d | while read d;do
+        printf '    %-20s : %s\n' "`basename "${d}"`" "${d}"
+    done | hterm_truncate >&2
+    while true;do
+        local sel="`hterm ask "${text}" "${default}"`"
+        local fil="${dir}/${sel}"
+        if test -d "${fil}";then
+            echo "${fil}"
+            break
+        elif hterm yn "Create directory?" n;then
+            mkdir -p "${fil}"
+            echo "${fil}"
+            break
+        else
+            continue
+        fi
+    done
+}
+hterm_ask_filename() { # [TEXT] [DIR] [DEFAULT] [SUFFIX]
+    local text="${1:-Specify a filename}" dir="${2:-`pwd`}" default="$3" suffix="$4" f=
+    if test ! -d "${dir}";then
+        echo "${SCRNAME}: error: Directory '${dir}' does not exist." >&2
+        return 1
+    fi
+    printf 'Directory `%s`:\n' "${dir}" >&2
+    find "${dir}" -maxdepth 1 -mindepth 1 -type f -iname "*${suffix}" | while read f;do
+        printf '    %-20s : %s\n' "`basename "${f}" "${suffix}"`" "${f}"
+    done | hterm_truncate >&2
+    while true;do
+        local sel="`hterm ask "${text}" "${default}"`"
+        local sel="`basename "${sel}" "${suffix}"`${suffix}"
+        local fil="${dir}/${sel}"
+        if test -e "${fil}" && test ! -f "${fil}";then
+            echo "${SCRNAME}: Path exists but it is not a file." >&2
+            continue
+        fi
+        break
+    done
+    echo "${fil}"
+}
+hterm_truncate() {
+    local cols="`tput cols 2>/dev/null || true`"
+    if test -n "${cols}";then
+        cut -c -"${cols}"
+    else
+        cat
+    fi
+}
+## -------------------------------------------------------------------
+SCRNAME="${SCRNAME:-$(basename "$0")}"
+if test @"${SCRNAME}" = @"hterm"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            hterm "$@"; exit 0;;
+    esac
+fi

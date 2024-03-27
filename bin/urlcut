@@ -1,0 +1,56 @@
+#!/bin/sh -e
+##:
+#h: Usage: urlcut [-R][-D SEP] -puwhd URL
+##:
+urlcut() {
+    local OPTIND optopt url op pre str nam lim=' ' ops= req=
+    
+    ## Parse command line arguments.
+    while getopts "puwhdD:R" optopt; do
+        ops="${ops} ${optopt}"
+        case $optopt in
+            D)  lim="${OPTARG}";;
+            R)  req=y;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    
+    ## Print URLs.
+    for url in "$@"; do
+        pre=''
+        for op in ${ops}; do
+            case ${op} in
+                p) str="$(urlcut_proto "${url}")" nam="protocol" ;;
+                u) str="$(urlcut_user  "${url}")" nam="username" ;;
+                w) str="$(urlcut_pass  "${url}")" nam="password" ;;
+                h) str="$(urlcut_host  "${url}")" nam="hostname" ;;
+                d) str="$(urlcut_path  "${url}")" nam="path"     ;;
+                *) continue;;
+            esac
+            if test -n "${req}" && test ! -n "${str}"; then
+                echo >&2 "error: Missing ${nam} in URL."
+                return 1
+            fi
+            printf '%s%s' "${pre}" "${str}"; pre="${lim}"
+        done
+        printf '\n'
+    done
+}
+## -------------------------------------------------------------------
+urlcut_proto()    { printf '%s'     "$1" | sed -n 's|^\([^:]*\)://.*|\1|p'; }
+urlcut_proto_no() { printf '%s'     "$1" | sed    's|^\([^:]*\)://||'     ; }
+urlcut_cred()     { urlcut_proto_no "$1" | sed -n 's|@.*||p'              ; }
+urlcut_user()     { urlcut_cred     "$1" | sed    's|:.*||'               ; }
+urlcut_pass()     { urlcut_cred     "$1" | sed -n 's|^[^:]*:||p'          ; }
+urlcut_cred_no()  { urlcut_proto_no "$1" | sed    's|.*@||'               ; }
+urlcut_host()     { urlcut_cred_no  "$1" | sed    's|[/:].*||'            ; }
+urlcut_port()     { urlcut_cred_no  "$1" | sed -n 's|^[^/]*:\([0-9]*\).*|\1|p'; }
+urlcut_path()     { urlcut_cred_no  "$1" | sed -n 's|^[^/]*/||p'          ; }
+## -------------------------------------------------------------------
+if test @"$(basename "$0")" = @"urlcut";then
+    case "${1}" in
+        ''|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)         urlcut "$@"; exit 0;;
+    esac
+fi

@@ -1,0 +1,75 @@
+#!/bin/sh -e
+##:
+#h: Usage: huname ...
+#h:
+#h:   -s : Linux, Windows_NT, MSYS, CYGWIN, ...
+#h:   -m : x86_64, aarch64, arm64, ...
+#h:   -d : debian, void, ...
+#h:   -l : List supported platforms.
+#h:
+#h: Environment variables: HUNAME_{SYSTEM,DISTRO,MACHINE}
+huname() {
+    local OPTIND optopt opt_s= opt_m= opt_d= opt_l= out=
+    
+    ## Parse command line arguments.
+    while getopts "r:smdl" optopt; do
+        case $optopt in
+            r)  HUNAME_SSH="${OPTARG}";;
+            s)  opt_s=y;;
+            m)  opt_m=y;;
+            d)  opt_d=y;;
+            l)  opt_l=y;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+
+    ## Calculate.
+    eval "$(huname_calculate)"
+    
+    ## Print results.
+    if test -n "${opt_l}"; then
+        echo "${system}-${machine}"
+        echo "${system}"
+        return 0
+    fi
+    if test -n "${opt_s}"; then
+        out="${out}${out:+-}${HUNAME_SYSTEM:-${system}}"
+    fi
+    if test -n "${opt_d}"; then
+        out="${out}${out:+-}${HUNAME_DISTRO:-${distro}}"
+    fi
+    if test -n "${opt_m}"; then
+        out="${out}${out:+-}${HUNAME_MACHINE:-${machine}}"
+    fi
+    
+    echo "${out}"
+}
+## -------------------------------------------------------------------
+huname_calculate() {
+    local cmd='
+    set -e
+    system="$(uname -s | sed "s|MSYS.*|MSYS|;s|CYG.*|CYGWIN|")"
+    if test -f /etc/os-release; then
+        . /etc/os-release
+        distro="$ID"
+    else
+        distro="$system"
+    fi
+    machine="$(uname -m)"
+    echo "local system=\"${system}\" distro=\"${distro}\" machine=\"${machine}\""
+    '
+    if test -n "${HUNAME_SSH}"; then
+        ssh "${HUNAME_SSH}" "${cmd}"
+    else
+        eval "${cmd}"
+    fi
+}
+
+## -------------------------------------------------------------------
+if test @"$(basename "$0")" = @"huname"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            huname "$@"; exit 0;;
+    esac
+fi

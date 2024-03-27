@@ -1,0 +1,129 @@
+#!/bin/sh -e
+##:
+#h: Usage: [H_LIST_DEPS=y] hmain [OPTIONS...] MAIN_F ARGS...
+#h: 
+#h: -f NAME : Only execute if script's name matches.
+#h: -s bash : Require `bash` as a shell (Set inherit_errexit).
+#h: -R      : Require execution as root.
+#h: -r PROG : Require program.
+#h: -e      : Allow empty arguments.
+#h: -C      : Run <MAIN_F>_calc_variables before <MAIN-F>.
+#h: -u OS   : Check support with `uname -o`.
+##:
+hmain() {
+    local OPTIND optopt
+    local script='' main_f='' shell_r='' e_opt='' C_opt='' progs='' p='' root=''
+    local unames=''
+    ## Parse command line arguments.
+    while getopts "f:s:Rr:eCu:" optopt; do
+        case $optopt in
+            f)  script="${OPTARG}"  ;;
+            s)  shell_r="${OPTARG}" ;;
+            R)  root=y;;
+            e)  e_opt=y;;
+            r)  progs="${progs} ${OPTARG}";;
+            C)  C_opt=y;;
+            u)  unames="${unames} ${OPTARG}";;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    main_f="$1"
+
+    ## Check OS.
+    if test -n "${unames}"; then
+        case "${unames}" in
+            *" `uname -o`"*)
+                true;;
+            *)  echo "${SCRNAME}: Unsupported OS: `uname -o`" >&2
+                echo "${SCRNAME}: Need: ${unames}" >&2
+                exit 1
+                ;;
+        esac
+    fi
+    
+    ## Check user.
+    if test -n "${root}" && test ! -w /bin/sh; then
+        echo "${SCRNAME}: This script requires to be launched as root."
+        exit 1
+    fi
+    
+    ## Check required programs.
+    for p in ${progs}; do
+        if test -e "${p}" >/dev/null 2>&1; then
+            true
+        elif test -n "${H_LIST_DEPS}"; then
+            echo "${p}"
+        elif which "${p}" >/dev/null 2>&1; then
+            true
+        else
+            echo "${SCRNAME}: Required program missing: ${p}" >&2
+            HMAIN_READY="1"
+        fi
+    done
+
+    ## Calculate variables.
+    if test -n "${C_opt}" && test -n "${main_f}"; then
+        "${main_f}"_calc_variables
+    fi
+    
+    ## Set terminal options.
+    if test -n "${H_LIST_DEPS}"; then
+        test ! -n "${HMAIN_SHELL}" || echo "${HMAIN_SHELL}"
+        return 0
+    fi
+    if test ! -n "${HMAIN_SHELL}"; then
+        if test @"${SHELL}" = @"/bin/ash"; then
+            HMAIN_SHELL="`basename "${SHELL}"`"
+        elif test -n "${BASH}"; then
+            HMAIN_SHELL="bash"
+        else
+            HMAIN_SHELL="${SHELL}"
+        fi
+        case "${HMAIN_SHELL}" in
+            bash) shopt -s inherit_errexit;;
+        esac
+    fi
+    
+    ## Check the shell matches.
+    if test -n "${shell_r}" && test ! @"${shell_r}" = @"${HMAIN_SHELL}"; then
+        echo "${SCRNAME}: Module '${script}:${main_f}' requires '${shell_r}' using ${HMAIN_SHELL}." >&2
+        exit 1
+    fi
+
+    ## Check the filename.
+    if test -n "${script}" && test ! @"${script}" = @"${BASENAME}"; then
+        return 0
+    fi
+
+    ## Require main function.
+    if test ! -n "${main_f}"; then
+        return 0
+    fi
+    shift
+       
+    ## Print help.
+    if test ! -n "${1:-${e_opt}}" || test @"${1}" = @"-h" || test @"${1}" = @"--help"; then
+        sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|${SCRNAME}|g"
+        echo ""
+        sed -n 's/^ *#l: \{0,2\}//p' "$0"
+        exit 0
+    fi
+    
+    ## Execute main.
+    if test @"${HMAIN_READY}" = @"1"; then
+        exit 1
+    fi
+    "${main_f}" "$@"
+    exit 0
+}
+## -------------------------------------------------------------------
+SCRNAME="${SCRNAME:-$(basename "$0")}"
+BASENAME="${SCRNAME}"
+HMAIN_READY="0"
+if test @"${SCRNAME}" = @"hmain"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            echo "error: Never run 'hmain' directly, instead source it." >&2; exit 1;;
+    esac
+fi

@@ -1,0 +1,44 @@
+#!/bin/sh -e
+##:
+#h: Usage: hlog TYPE MSG
+#h:
+#h: Print a log message with the program name ($SCRNAME) as prefix. You can
+#h: disable it by setting ${HLOG_NO_PREFIX}.
+#h:      
+#h: hlog {error,info,warning} MSG : Print message.
+#h: hlog debug                MSG : Print message if $DEBUG is defined.
+#h: hlog verbose              MSG : Print message if $VERBOSE is defined.
+#h: hlog {fatal|abort}        MSG : Print message and fail.
+#h:
+#h: hlog errif  MSG TEST... : If TEST succeedes print MSG and return 1.
+#h: hlog assert MSG TEST... : If TEST fails print MSG and return 1.
+##:
+hlog() {
+    local cmd="$1"
+    if test -n "${HLOG_NO_PREFIX}" || test @"${SCRNAME}" = @"hlog"; then
+        local pre=""
+    else
+        local pre="${HLOG_PREFIX:-${SCRNAME}}: "
+    fi
+    shift
+    case "${cmd}" in
+        error)   echo "${pre}error: $*"       >&2;;
+        info)    echo "${pre}$*"              >&2;;
+        warning) echo "${pre}warn : $*" >&2;;
+        debug)   test ! -n "${DEBUG}"   || echo "${pre}debug: $*" >&2 ;;
+        verbose) test ! -n "${VERBOSE}" || echo "${pre}$*"        >&2 ;;
+        errif)   local m="$1"; shift; if   "$@" >/dev/null 2>&1; then hlog fatal "$m"; fi;;
+        assert)  local m="$1"; shift; if ! "$@" >/dev/null 2>&1; then hlog fatal "$m"; fi;;
+        fatal)   hlog error "$*"; return 1;;
+        abort)   hlog error "$*"; return 1;;
+        *)       hlog info "${cmd} $*";;
+    esac
+}
+## -------------------------------------------------------------------
+SCRNAME="${SCRNAME:-$(basename "$0")}"
+if test @"${SCRNAME}" = @"hlog"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            hlog "$@"; exit 0;;
+    esac
+fi

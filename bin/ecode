@@ -1,0 +1,11 @@
+#!/bin/sh -e
+##:
+#h: Usage: ecode COMMAND...
+#h:
+#h: Execute command inside it's own process and set the return code
+#h: in "ecode".
+##:
+ecode() { set +e; ( set -e; "$@" ); ecode=$?; set -e; }
+if test @"${SCRNAME}" = @"ecode" && test -n "${1}"; then
+    "$@"
+fi

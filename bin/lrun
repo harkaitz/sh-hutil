@@ -1,0 +1,101 @@
+#!/bin/sh -e
+##:
+#h: Usage: lrun -lf NAME COMMAND | -t
+#h:
+#h: Execute a program redirecting it's output to a log file. It will store
+#h: the log file in /tmp/lrun. Return code 4 is considered skip.
+#h:
+#h: 1.- You can change the output directory from /tmp to another setting LRUN_LOGDIR.
+#h: 2.- You can change the size of the columns with LRUN_COL1 and LRUN_COL2.
+#h:
+#h: -l : Print the head.
+#h: -L : Print START and ERROR/SKIP in each line.
+##:
+lrun() {
+    local skip= head= OPTIND optopt= perline= ecode=
+    while getopts "lftL" optopt;do
+        case $optopt in
+            l)  local head="${SCRNAME}";;
+            f)  true ;; ## Compativility.
+            t)  echo "Log to ${LRUN_LOGDIR}"; return 0;;
+            L)  perline=y;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    if test -n "$1"; then
+        local name1="`echo "${1}" | tr '/' '-'`"
+        local name2="${1}"
+        shift
+    else
+        echo 'lrun: error: Please specify a name.' >&2
+        return 1
+    fi
+    if test ! -n "$1"; then
+        echo 'lrun: error: Please specify a command to execute.' >&2
+        return 1
+    fi
+    local f_log="${LRUN_LOGDIR}/${name1}.log"
+    local f_ok="${LRUN_LOGDIR}/${name1}.log.ok"
+    local f_err="${LRUN_LOGDIR}/${name1}.log.err"
+    local f_skip="${LRUN_LOGDIR}/${name1}.log.skip"
+    if test @"${LRUN_LOGDIR}" = @"/tmp"; then
+        local f_log_s="${f_log}"
+    else
+        local f_log_s="${name1}.log"
+    fi
+
+    mkdir -p "${LRUN_LOGDIR}"
+    rm -f "${f_log}" "${f_ok}" "${f_err}" "${f_skip}"
+
+    ## Print it's start.
+    if test -n "${perline}"; then
+        echo "START ${name2}"
+    else
+        printf "${head:+${head}: }"'%-'"${LRUN_COL1}"'s : ' "${name2}" >&2
+    fi
+
+    ## Execute the command.
+    ecode "$@" > "${f_log}" 2>&1 < /dev/null
+
+    ## Print it's end.
+    if test @"${ecode}" = @"0"; then
+        if test -n "${perline}"; then
+            echo "SUCCESS ${name2}" >&2
+        else
+            echo "SUCCESS" >&2
+        fi
+        touch "${f_ok}"
+    elif test @"${ecode}" = @"4"; then
+        if test -n "${perline}"; then
+            echo "SKIP ${name2}"
+        else
+            echo "SKIP" >&2
+        fi
+        touch "${f_skip}"
+    else
+        if test -n "${perline}"; then
+            echo "ERROR ${name2}"
+        else
+            echo "ERROR" >&2
+        fi
+        touch "${f_err}"
+        return 1
+    fi
+}
+lrun_calc_variables() {
+    LRUN_LOGDIR="${LRUN_LOGDIR:-${TEMP:-/tmp}/lrun}"
+    LRUN_SKIP="${LRUN_SKIP:-}"
+    LRUN_COL1="${LRUN_COL1:-24}"
+    LRUN_COL2="${LRUN_COL2:-25}"
+}
+## -------------------------------------------------------------------
+ecode() { set +e; ( set -e; "$@" ); ecode=$?; set -e; }
+SCRNAME="$(basename "$0")"
+lrun_calc_variables
+if test @"${SCRNAME}" = @"lrun"; then
+    case "${1}" in
+        ''|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)         lrun "$@"; exit 0;;
+    esac
+fi

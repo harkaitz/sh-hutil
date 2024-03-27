@@ -1,0 +1,172 @@
+#!/bin/sh -e
+##:
+#h: Usage: hsh [FLAGS...] SCRIPT [ARGS...]
+#h:
+#h: Shell script wrapper and remote execution tool.
+#h:
+#h: ## Bundle generator             ## Analysis
+#h:                                 
+#h: -o FILE|- : Generate bundle.    -d : Print dependencies.
+#h:
+#h: ## Installer.
+#h:
+#h: -S     : Install with sudo.
+#h: -i     : Install to /usr/local/bin.
+#h:
+#h: ## SSH Execution.
+#h:
+#h: -S     : Run with sudo.
+#h: -r U@H : Run on a remote system using SSH.
+##:
+hsh() {
+
+    
+    ## Parse arguments.
+    local OPTIND optopt= ops= output= remote= install=
+    local service= service_type= executable= launcher= code=
+    while getopts "do:r:iSV:k:" optopt; do # OPTARG
+        case $optopt in
+            d)  local ops="$ops$optopt"   ;;
+            o)  local output="$OPTARG"    ;;
+            r)  local remote="$OPTARG"    ;;
+            i)  local install="y"         ;;
+            V)  eval "v=\${$OPTARG}"
+                code="${code} $OPTARG='$v'"
+                if test ! -n "$v"; then
+                    echo "error: Please set $OPTARG." >&2
+                    return 1
+                fi
+                ;;
+            S)  local HSH_SUDO=sudo;;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+
+    ## Search script.
+    if test -n "$1";then
+        local cmd="$1"
+        shift
+        if ! which "${cmd}" >/dev/null 2>&1; then
+            echo >&2 "error: ${cmd}: Script not found."
+            return 1
+        fi
+    else
+        return 0
+    fi
+       
+    ## Calculate temporary file to create and name.
+    local name="$(basename "${cmd}")"
+    if test -n "${remote}${install}";then
+        local output="${TEMP:-/tmp}/${name}"
+    fi
+
+    ## Calculate dependencies and solve full path.
+    local dependencies="$(hsh_deps "${cmd}" | awk '!seen[$0]++')"
+    local launcher="$(echo "${dependencies}" | tail -n 1)"
+
+    ## Print dependencies.
+    case "${ops}" in *d*) echo "${dependencies}";; esac
+
+    ## Create bundle.
+    if test -n "${output}";then
+        hsh_compile "${output}" $dependencies
+    fi
+
+    ## Remote.
+    if test -n "${remote}";then
+        local output_directory='${TEMP:-/tmp}/hsh/${USER}'
+        cat "${output}" | ssh "${remote}" "
+             if test -e ~/.profile; then . ~/.profile; fi
+             mkdir -p ${output_directory}
+             chmod a+rwx ${output_directory} || true
+             cat > ${output_directory}/${name}
+        "
+        if test -n "${install}";then
+            echo "Installing ${remote}:/usr/local/bin/${name} ..." >&2
+            ssh -o LogLevel=QUIET "${remote}" "
+            ${HSH_SUDO} mkdir -p /usr/local/bin
+            ${HSH_SUDO} mv ${output_directory}/${name} /usr/local/bin/${name}
+            ${HSH_SUDO} chmod +x /usr/local/bin/${name} || true"
+            local launcher="/usr/local/bin/${name}"
+        else
+            ssh -o LogLevel=QUIET "$remote" "if test -e ~/.profile; then . ~/.profile; fi; ${HSH_SUDO} sh -e ${output_directory}/${name} $(hsh_escape "$@")"
+            local launcher=""
+        fi
+    elif test -n "${install}";then
+        echo "Installing /usr/local/bin/${name} ..." >&2
+        sudo mv "${output}" "/usr/local/bin/${name}"
+        sudo chmod +x "/usr/local/bin/${name}"
+        local launcher="/usr/local/bin/${name}"
+    fi
+}
+hsh_deps() {
+    if test -f "$1";then
+        local f="$1" l=""
+    else
+        local f="$(which "$1")" l=""
+    fi
+    if test ! -f "${f}";then
+        echo "error: Can't find ${1}." >&2
+        exit 1
+    fi
+    local n="$(sed -n '2s/^\#ORIG://p' "$f")"
+    if test -n "$n"; then
+        hsh_deps "$n"
+        return 0
+    fi
+    for l in $(sed -n 's|^\. \([^ ]*\).*|\1|p;/()/q' "${f}");do
+        if test -n "$l";then
+            hsh_deps "$l"
+        fi
+    done
+    echo "$f"
+}
+hsh_compile() {
+    local o="$1" n="$(basename "$1")" f= l=
+    shift
+    if test ! @"${o}" = @"-"; then
+        hsh_compile "-" "$@" > "${o}"
+    else
+        cat <<-EOF
+	#!/bin/sh -e
+	# BUNDLE FILE, DO NOT EDIT.
+	${HSH_PRE_CODE}
+	${code}
+	export HSH_BOOTSTRAP=y
+	EOF
+        while test -n "$1"; do
+            if test ! -n "$2"; then
+                cat <<-EOF
+		SCRNAME="$(basename "$1")"
+		EOF
+                sed '
+                /^\. \(.*\)/d
+                '"${HSH_SED}" "${1}"
+            else
+                sed '
+                /^\. \(.*\)/d
+                /^ *#[hlL]:/d
+                '"${HSH_SED}" "${1}"
+            fi
+            shift
+        done
+        cat <<-EOF
+	${HSH_POST_CODE}
+	EOF
+    fi
+}
+hsh_escape() {
+    local ret="" arg=""
+    for arg in "$@"; do
+        local ret="$ret '`printf '%s\n' "$arg" | sed "s|'|'\\\\\\''|g"`'"
+    done
+    printf '%s\n' "$ret"
+}
+## -------------------------------------------------------------------
+if test @"$(basename "$0")" = @"hsh"; then
+    case "${1}" in
+        ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        *)            hsh "$@"; exit 0;;
+    esac
+fi
