@@ -1,14 +1,19 @@
 #!/bin/sh -e
 ##:
 #h: Usage: [H_LIST_DEPS=y] hmain [OPTIONS...] MAIN_F ARGS...
+#h:
+#h: Check whether the shell is compatible and the script filenames
+#h: matches NAME, if so execute "MAIN_F ARGS...".
 #h: 
-#h: -f NAME : Only execute if script's name matches.
-#h: -s bash : Require `bash` as a shell (Set inherit_errexit).
-#h: -R      : Require execution as root.
-#h: -r PROG : Require program.
-#h: -e      : Allow empty arguments.
-#h: -C      : Run <MAIN_F>_calc_variables before <MAIN-F>.
-#h: -u OS   : Check support with `uname -o`.
+#h:  -f NAME  : Only execute if script's name matches.
+#h:  -s bash  : Require `bash` as a shell (Set inherit_errexit).
+#h:  -R       : Require execution as root.
+#h:  -r PROG  : Require program.
+#h:  -e       : Allow empty arguments.
+#h:  -C       : Run <MAIN_F>_calc_variables before <MAIN-F>.
+#h:  -u OS    : Check support with `uname -o`.
+##:
+#f: help2man
 ##:
 hmain() {
     local OPTIND optopt
@@ -124,6 +129,7 @@ HMAIN_READY="0"
 if test @"${SCRNAME}" = @"hmain"; then
     case "${1}" in
         ''|-h|--help) sed -n 's/^ *#h: \{0,1\}//p' "$0";;
+        -v|--version) echo "0.1";;
         *)            echo "error: Never run 'hmain' directly, instead source it." >&2; exit 1;;
     esac
 fi
