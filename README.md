@@ -70,13 +70,16 @@ hmain
 
     Usage: [H_LIST_DEPS=y] hmain [OPTIONS...] MAIN_F ARGS...
     
-    -f NAME : Only execute if script's name matches.
-    -s bash : Require `bash` as a shell (Set inherit_errexit).
-    -R      : Require execution as root.
-    -r PROG : Require program.
-    -e      : Allow empty arguments.
-    -C      : Run <MAIN_F>_calc_variables before <MAIN-F>.
-    -u OS   : Check support with `uname -o`.
+    Check whether the shell is compatible and the script filenames
+    matches NAME, if so execute "MAIN_F ARGS...".
+    
+     -f NAME  : Only execute if script's name matches.
+     -s bash  : Require `bash` as a shell (Set inherit_errexit).
+     -R       : Require execution as root.
+     -r PROG  : Require program.
+     -e       : Allow empty arguments.
+     -C       : Run <MAIN_F>_calc_variables before <MAIN-F>.
+     -u OS    : Check support with `uname -o`.
 
 hopen
 
@@ -108,12 +111,14 @@ hsh
     
     ## Installer.
     
-    -i NAME      : Install to /usr/local/bin. Can be used with `-r`.
+    -S     : Install with sudo.
+    -i     : Install to /usr/local/bin.
     
     ## SSH Execution.
     
-    -S           : Run with sudo.
-    -r USER@HOST : Run on a remote system using SSH.
+    -S     : Run with sudo.
+    -r U@H : Run on a remote system using SSH.
+    -t     : Require a terminal.
 
 hterm
 
@@ -156,23 +161,6 @@ lrun
     
     -l : Print the head.
     -L : Print START and ERROR/SKIP in each line.
-
-rsetup
-
-    Usage: rsetup [-r MACHINE] SCRIPT ARGS...
-    
-    Execute system configuration scripts. You should name this scripts
-    as follows:
-    
-      - dsetup-*    : For Debian.
-      - vsetup-*    : For Void Linux.
-      - [r]lsetup-* : For GNU/Linux.
-      - [r]wsetup-* : MS Windows (Busybox).
-      - [r]msetup-* : MS Windows with desktop (Busybox).
-    
-    This scripts are searched for in the $PATH. If you specify a remote
-    machine with -r then hsh(1) is used. If you don't specify a script
-    it will print a list.
 
 urlcut
 

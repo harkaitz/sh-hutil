@@ -4,5 +4,4 @@
 ## -- BLOCK:sh --
 InstallFile
 install.sh
-install
 ## -- BLOCK:sh --
