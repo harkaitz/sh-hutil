@@ -85,21 +85,23 @@ hsh() {
              cat > ${output_directory}/${name}
         "
         if test -n "${install}";then
-            echo "Installing ${remote}:/usr/local/bin/${name} ..." >&2
             ssh -o LogLevel=QUIET "${remote}" "
-            ${HSH_SUDO} mkdir -p /usr/local/bin
-            ${HSH_SUDO} mv ${output_directory}/${name} /usr/local/bin/${name}
-            ${HSH_SUDO} chmod +x /usr/local/bin/${name} || true"
-            local launcher="/usr/local/bin/${name}"
+                if test @\"\$(uname -s)\" = @Windows_NT; then
+                    echo \"Installing ${remote}:\$LOCALAPPDATA/Microsoft/WindowsApps/${name} ...\" >&2
+                    mv ${output_directory}/${name} \"\$LOCALAPPDATA/Microsoft/WindowsApps\"
+                else
+                    echo 'Installing ${remote}:/usr/local/bin/${name} ...' >&2
+                    ${HSH_SUDO} mkdir -p /usr/local/bin
+                    ${HSH_SUDO} mv ${output_directory}/${name} /usr/local/bin/${name}
+                    ${HSH_SUDO} chmod +x /usr/local/bin/${name} || true
+                fi"
         else
             ssh -o LogLevel=QUIET ${terminal:+-t} "$remote" "if test -e ~/.profile; then . ~/.profile; fi; ${HSH_SUDO} sh -e ${output_directory}/${name} $(hsh_escape "$@")"
-            local launcher=""
         fi
     elif test -n "${install}";then
         echo "Installing /usr/local/bin/${name} ..." >&2
         sudo mv "${output}" "/usr/local/bin/${name}"
         sudo chmod +x "/usr/local/bin/${name}"
-        local launcher="/usr/local/bin/${name}"
     fi
 }
 hsh_deps() {
