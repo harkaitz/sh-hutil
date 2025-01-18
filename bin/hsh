@@ -74,7 +74,7 @@ hsh() {
     if test -n "${output}";then
         hsh_compile "${output}" $dependencies
     fi
-
+    
     ## Remote.
     if test -n "${remote}";then
         local output_directory='${TEMP:-/tmp}/hsh/${USER}'
@@ -136,6 +136,12 @@ hsh_compile() {
 	#!/bin/sh -e
 	# BUNDLE FILE, DO NOT EDIT.
 	${HSH_PRE_CODE}
+	pass() {
+	    echo >&2 "pass \$1"
+	    echo >&2 -n "Type password: "
+	    read -r pwd
+	    echo \$pwd
+	}
 	${code}
 	export HSH_BOOTSTRAP=y
 	EOF
