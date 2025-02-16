@@ -7,7 +7,7 @@
 ##:
 hcfg() {
     ## Parse command line options.
-    local OPTIND optopt= ops= text= f=
+    local OPTIND=1 optopt= ops= text= f=
     while getopts "p" optopt;do # OPTARG
         case $optopt in
             p)  for f in ${HCFG_SYS_FILE} ${HCFG_USR_FILE};do

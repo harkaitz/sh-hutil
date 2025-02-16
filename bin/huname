@@ -9,7 +9,7 @@
 #h:
 #h: Environment variables: HUNAME_{SYSTEM,DISTRO,MACHINE}
 huname() {
-    local OPTIND optopt opt_s= opt_m= opt_d= opt_l= out=
+    local OPTIND=1 optopt opt_s= opt_m= opt_d= opt_l= out=
     
     ## Parse command line arguments.
     while getopts "r:smdl" optopt; do

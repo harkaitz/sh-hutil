@@ -16,7 +16,7 @@
 #f: help2man
 ##:
 hmain() {
-    local OPTIND optopt
+    local OPTIND=1 optopt
     local script='' main_f='' shell_r='' e_opt='' C_opt='' progs='' p='' root=''
     local unames=''
     ## Parse command line arguments.

@@ -22,7 +22,7 @@
 hsh() {
     
     ## Parse arguments.
-    local OPTIND optopt= ops= output= remote= install=
+    local OPTIND=1 optopt= ops= output= remote= install=
     local service= service_type= executable= launcher= code=
     local terminal=
     while getopts "do:r:iSV:k:t" optopt; do # OPTARG

@@ -12,7 +12,7 @@
 ##:
 hremote() {
 
-    local OPTIND optopt main_f bundle v code='' script='' ssh='' opt_e='' local_f='' skip='' args='' hlp=''
+    local OPTIND=1 optopt main_f bundle v code='' script='' ssh='' opt_e='' local_f='' skip='' args='' hlp=''
     
     ## Parse command line arguments.
     while getopts "f:c:el:XV:H:" optopt; do

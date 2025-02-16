@@ -12,8 +12,8 @@
 #h: -L : Print START and ERROR/SKIP in each line.
 ##:
 lrun() {
-    local skip= head= OPTIND optopt= perline= ecode=
-    while getopts "lftL" optopt;do
+    local skip= head= OPTIND=1 optopt= perline= ecode=
+    while getopts "lftL" optopt; do
         case $optopt in
             l)  local head="${SCRNAME}";;
             f)  true ;; ## Compativility.

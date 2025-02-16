@@ -3,7 +3,7 @@
 #h: Usage: urlcut [-R][-D SEP] -puwhd URL
 ##:
 urlcut() {
-    local OPTIND optopt url op pre str nam lim=' ' ops= req=
+    local OPTIND=1 optopt url op pre str nam lim=' ' ops= req=
     
     ## Parse command line arguments.
     while getopts "puwhdD:R" optopt; do
