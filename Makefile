@@ -1,9 +1,11 @@
+.POSIX: # POSIX Makefile, use make,gmake,pdpmake,bmake
 PROJECT=sh-hutil
 VERSION=1.0.3
 PREFIX=/usr/local
 all:
 clean:
 install:
+check:
 
 ## -- BLOCK:license --
 install: install-license

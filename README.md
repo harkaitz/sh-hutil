@@ -117,6 +117,7 @@ hsh
     ## SSH Execution.
     
     -S     : Run with sudo.
+    -C DIR : Run in directory.
     -r U@H : Run on a remote system using SSH.
     -t     : Require a terminal.
 

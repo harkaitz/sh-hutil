@@ -16,6 +16,7 @@
 #h: ## SSH Execution.
 #h:
 #h: -S     : Run with sudo.
+#h: -C DIR : Run in directory.
 #h: -r U@H : Run on a remote system using SSH.
 #h: -t     : Require a terminal.
 ##:
@@ -24,8 +25,8 @@ hsh() {
     ## Parse arguments.
     local OPTIND=1 optopt= ops= output= remote= install=
     local service= service_type= executable= launcher= code=
-    local terminal=
-    while getopts "do:r:iSV:k:t" optopt; do # OPTARG
+    local terminal= rundir=.
+    while getopts "do:r:iSV:k:tC:" optopt; do # OPTARG
         case $optopt in
             d)  local ops="$ops$optopt"   ;;
             o)  local output="$OPTARG"    ;;
@@ -39,7 +40,8 @@ hsh() {
                 fi
                 ;;
             S)  local HSH_SUDO=sudo;;
-            t)  local terminal=y;;
+            t)  terminal=y;;
+            C)  rundir="${OPTARG}";;
             \?) return 1;;
         esac
     done
@@ -96,7 +98,7 @@ hsh() {
                     ${HSH_SUDO} chmod +x /usr/local/bin/${name} || true
                 fi"
         else
-            ssh -o LogLevel=QUIET ${terminal:+-t} "$remote" "if test -e ~/.profile; then . ~/.profile; fi; ${HSH_SUDO} sh -e ${output_directory}/${name} $(hsh_escape "$@")"
+            ssh -o LogLevel=QUIET ${terminal:+-t} "$remote" "set -e; if test -e ~/.profile; then . ~/.profile; fi; cd '${rundir}'; ${HSH_SUDO} sh -e ${output_directory}/${name} $(hsh_escape "$@")"
         fi
     elif test -n "${install}";then
         echo "Installing /usr/local/bin/${name} ..." >&2
